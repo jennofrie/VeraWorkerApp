@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -164,30 +165,37 @@ export default function LoginScreen() {
       end={{ x: 1, y: 1 }}
       style={styles.gradientBackground}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {/* Top Right - Australia */}
-          <View style={styles.topBar}>
-            <View style={styles.regionContainer}>
-              <ThemedText style={styles.regionText}>Australia</ThemedText>
-              <IconSymbol name="chevron.right" size={16} color="rgba(255, 255, 255, 0.7)" />
-            </View>
-          </View>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            style={styles.scrollView}
+          >
+            <View style={styles.contentWrapper}>
+              {/* Top Right - Australia */}
+              <View style={styles.topBar}>
+                <View style={styles.regionContainer}>
+                  <ThemedText style={styles.regionText}>Australia</ThemedText>
+                  <IconSymbol name="chevron.right" size={16} color="rgba(255, 255, 255, 0.7)" />
+                </View>
+              </View>
 
-          {/* Logo Section */}
-          <View style={styles.logoSection}>
-            <ThemedText style={styles.logoText}>Vera Link</ThemedText>
-          </View>
+              {/* Logo Section */}
+              <View style={styles.logoSection}>
+                <View style={styles.logoContainer}>
+                  <ThemedText style={styles.logoText}>Vera Link</ThemedText>
+                </View>
+              </View>
 
-          {/* Login Form */}
-          <View style={styles.formContainer}>
+              {/* Login Form */}
+              <View style={styles.formContainer}>
             <ThemedText style={styles.loginTitle}>Login to the app</ThemedText>
 
             {error && (
@@ -274,8 +282,10 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
           </View>
+            </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -285,12 +295,22 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
-    paddingTop: Platform.OS === 'ios' ? 20 : 10,
-    paddingBottom: 20,
+    flexGrow: 1,
+  },
+  contentWrapper: {
+    paddingTop: 20,
+    paddingBottom: 30,
+    paddingHorizontal: 0,
   },
   centerContent: {
     flex: 1,
@@ -301,8 +321,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 0,
-    marginBottom: 10,
+    paddingTop: 10,
+    marginBottom: 30,
   },
   regionContainer: {
     flexDirection: 'row',
@@ -320,21 +340,47 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 0,
+    zIndex: 100,
+    elevation: 100,
+    position: 'relative',
+  },
+  logoContainer: {
+    backgroundColor: 'rgba(31, 29, 43, 0.3)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    zIndex: 101,
+    elevation: 101,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   logoText: {
     fontSize: 48,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -1,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 12,
+    backgroundColor: 'transparent',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: 56,
+    zIndex: 102,
+    elevation: 102,
   },
   formContainer: {
     paddingHorizontal: 24,
   },
   loginTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 24,
@@ -354,7 +400,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   inputLabel: {
     fontSize: 14,
@@ -378,7 +424,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 20,
     shadowColor: '#5B9BD5',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -395,7 +441,7 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 16,
     marginBottom: 10,
   },
   infoText: {
