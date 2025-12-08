@@ -235,50 +235,111 @@ export default function HomeScreen() {
   };
 
   const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
+    // Platform check - Location not available on web
+    if (Platform.OS === 'web') {
+      console.log('Location service not available on web platform');
+      return null;
+    }
+
     try {
+      // Check if Location module is available
       if (!Location || typeof Location.getCurrentPositionAsync !== 'function') {
-        console.log('Location service not available');
+        console.log('Location service not available on this device');
+        return null;
+      }
+
+      // Check if location services are enabled
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        console.log('Location services are disabled on this device');
         return null;
       }
 
       // Check current permission status first
-      let { status } = await Location.getForegroundPermissionsAsync();
-      
-      if (status === 'denied') {
-        console.log('Location permission permanently denied');
-        // Don't show alert here - let the caller handle it
+      let permissionStatus;
+      try {
+        permissionStatus = await Location.getForegroundPermissionsAsync();
+      } catch (permError) {
+        console.error('Error checking location permissions:', permError);
         return null;
       }
 
+      let { status } = permissionStatus;
+      
+      // If permanently denied, don't request again (iOS/Android behavior)
+      if (status === 'denied') {
+        console.log('Location permission permanently denied');
+        return null;
+      }
+
+      // Request permission if not granted
       if (status !== 'granted') {
-        // Request permission
-        const permissionResponse = await Location.requestForegroundPermissionsAsync();
-        status = permissionResponse.status;
-        
-        if (status !== 'granted') {
-          console.log('Location permission denied by user');
-          // Silent failure - location is optional for clock in/out
+        try {
+          const permissionResponse = await Location.requestForegroundPermissionsAsync();
+          status = permissionResponse.status;
+          
+          if (status !== 'granted') {
+            console.log('Location permission denied by user');
+            return null;
+          }
+        } catch (requestError) {
+          console.error('Error requesting location permission:', requestError);
           return null;
         }
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-        timeout: 10000, // 10 second timeout
-      });
+      // Get location with timeout and better error handling
+      try {
+        const location = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 5000, // Optional: update interval
+          }),
+          // Timeout promise
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Location request timeout')), 8000)
+          )
+        ]) as Location.LocationObject;
 
-      if (!location || !location.coords) {
-        console.log('Location data not available');
+        // Validate location data
+        if (!location || !location.coords) {
+          console.log('Invalid location data received');
+          return null;
+        }
+
+        const { latitude, longitude } = location.coords;
+
+        // Validate coordinates are valid numbers
+        if (
+          typeof latitude !== 'number' ||
+          typeof longitude !== 'number' ||
+          isNaN(latitude) ||
+          isNaN(longitude) ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          console.log('Invalid coordinates received:', { latitude, longitude });
+          return null;
+        }
+
+        return {
+          lat: latitude,
+          lng: longitude,
+        };
+      } catch (locationError: any) {
+        // Handle timeout and other location errors
+        if (locationError.message === 'Location request timeout') {
+          console.log('Location request timed out after 8 seconds');
+        } else {
+          console.error('Error getting location:', locationError);
+        }
         return null;
       }
-
-      return {
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      };
     } catch (error: any) {
-      console.error('Error getting location:', error);
-      // Location is optional, so we don't throw - just return null
+      // Catch-all for any unexpected errors
+      console.error('Unexpected error in getCurrentLocation:', error);
       return null;
     }
   };
