@@ -39,20 +39,42 @@ export default function LoginScreen() {
 
   const checkAuth = async () => {
     try {
+      // First check Supabase session
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // If no session, check AsyncStorage as fallback
+      if (!session) {
+        const storedWorkerId = await AsyncStorage.getItem(WORKER_ID_KEY);
+        const storedWorkerName = await AsyncStorage.getItem('@veralink:workerName');
+        const storedWorkerEmail = await AsyncStorage.getItem('@veralink:workerEmail');
+
+        if (storedWorkerId && storedWorkerName && storedWorkerEmail) {
+          if (isValidUUID(storedWorkerId)) {
+            // User has stored credentials but no session - clear and show login
+            await AsyncStorage.multiRemove([WORKER_ID_KEY, '@veralink:workerName', '@veralink:workerEmail']);
+          }
+        }
+        // No valid session or credentials, show login
+        setIsChecking(false);
+        return;
+      }
+      
+      // Session exists, verify worker data
       const storedWorkerId = await AsyncStorage.getItem(WORKER_ID_KEY);
       const storedWorkerName = await AsyncStorage.getItem('@veralink:workerName');
       const storedWorkerEmail = await AsyncStorage.getItem('@veralink:workerEmail');
 
-      if (storedWorkerId && storedWorkerName && storedWorkerEmail) {
-        if (isValidUUID(storedWorkerId)) {
-          // User is already logged in, navigate to tabs
-          router.replace('/(tabs)');
-          return;
-        } else {
-          // Invalid UUID, clear it
-          await AsyncStorage.multiRemove([WORKER_ID_KEY, '@veralink:workerName', '@veralink:workerEmail']);
-        }
+      if (storedWorkerId && storedWorkerName && storedWorkerEmail && isValidUUID(storedWorkerId)) {
+        // User is already logged in, navigate to tabs
+        router.replace('/(tabs)');
+        return;
+      } else {
+        // Session exists but no worker data - clear and show login
+        await AsyncStorage.multiRemove([WORKER_ID_KEY, '@veralink:workerName', '@veralink:workerEmail']);
+        await supabase.auth.signOut();
       }
+      
       // No valid credentials, show login
       setIsChecking(false);
     } catch (error) {
@@ -90,36 +112,7 @@ export default function LoginScreen() {
     try {
       const { supabase } = await import('@/lib/supabase');
       
-      // FIRST: Get worker record by email (using anonymous access - avoids RLS timing issues)
-      // This query happens before authentication, so it uses anonymous policy
-      const { data: workerData, error: workerError } = await supabase
-        .from('workers')
-        .select('id, name, email')
-        .eq('email', trimmedEmail)
-        .single();
-
-      if (workerError) {
-        console.error('Worker lookup error:', workerError);
-        
-        // Provide specific error messages
-        if (workerError.code === 'PGRST301' || workerError.message?.includes('permission denied') || workerError.message?.includes('403')) {
-          setError('Permission denied. Please ensure RLS policy "Allow anonymous reads on workers" exists. See FIX_RLS_POLICIES.sql');
-        } else if (workerError.code === 'PGRST116') {
-          setError('Worker account not found. Please ensure the worker exists in the workers table with matching email.');
-        } else {
-          setError(`Database error: ${workerError.message || 'Please contact support.'}`);
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      if (!workerData) {
-        setError('Worker account not found. Please ensure the worker exists in the workers table.');
-        setIsLoading(false);
-        return;
-      }
-
-      // SECOND: Authenticate with Supabase Auth (after we know worker exists)
+      // FIRST: Authenticate with Supabase Auth (faster - single network call)
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password: trimmedPassword,
@@ -138,6 +131,39 @@ export default function LoginScreen() {
         return;
       }
 
+      // SECOND: Get worker record by email (now authenticated - uses authenticated RLS policy)
+      // This is faster because we're already authenticated
+      const { data: workerData, error: workerError } = await supabase
+        .from('workers')
+        .select('id, name, email')
+        .eq('email', trimmedEmail)
+        .single();
+
+      if (workerError) {
+        console.error('Worker lookup error:', workerError);
+        
+        // Sign out if worker lookup fails
+        await supabase.auth.signOut();
+        
+        // Provide specific error messages
+        if (workerError.code === 'PGRST301' || workerError.message?.includes('permission denied') || workerError.message?.includes('403')) {
+          setError('Permission denied. Please ensure RLS policy allows authenticated users to read workers.');
+        } else if (workerError.code === 'PGRST116') {
+          setError('Worker account not found. Please ensure the worker exists in the workers table with matching email.');
+        } else {
+          setError(`Database error: ${workerError.message || 'Please contact support.'}`);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      if (!workerData) {
+        await supabase.auth.signOut();
+        setError('Worker account not found. Please ensure the worker exists in the workers table.');
+        setIsLoading(false);
+        return;
+      }
+
       // Login successful - store worker info
       await AsyncStorage.multiSet([
         [WORKER_ID_KEY, workerData.id],
@@ -145,10 +171,18 @@ export default function LoginScreen() {
         ['@veralink:workerEmail', workerData.email],
       ]);
       
+      // Navigate immediately after storing data
       router.replace('/(tabs)');
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed. Please try again.');
+      // Try to sign out on error
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        await supabase.auth.signOut();
+      } catch (signOutErr) {
+        console.error('Error signing out after login error:', signOutErr);
+      }
     } finally {
       setIsLoading(false);
     }

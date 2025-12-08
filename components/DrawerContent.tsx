@@ -47,17 +47,38 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      // Close drawer first
+      onClose?.();
+      
+      // Clear all stored data first
       await AsyncStorage.multiRemove([
         WORKER_ID_KEY,
         '@veralink:workerName',
         '@veralink:workerEmail',
         '@veralink:currentShiftId',
       ]);
+      
+      // Sign out from Supabase Auth
+      await supabase.auth.signOut();
+      
+      // Navigate to login screen - use replace to clear navigation stack
       router.replace('/');
-      onClose?.();
     } catch (error) {
       console.error('Error signing out:', error);
+      // Even if there's an error, clear storage and navigate to login
+      try {
+        await AsyncStorage.multiRemove([
+          WORKER_ID_KEY,
+          '@veralink:workerName',
+          '@veralink:workerEmail',
+          '@veralink:currentShiftId',
+        ]);
+        await supabase.auth.signOut();
+      } catch (clearError) {
+        console.error('Error clearing data:', clearError);
+      }
+      // Always navigate to login, even on error
+      router.replace('/');
     }
   };
 
