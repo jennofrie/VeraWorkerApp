@@ -26,6 +26,8 @@ import { ShiftNotesModal } from '@/components/ShiftNotesModal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
+import { retryOperation, isNetworkError, isSupabaseError } from '@/lib/utils/retry';
+import { getNetworkErrorMessage } from '@/lib/utils/network';
 
 const BUTTON_SIZE = 250;
 const STORAGE_KEY = '@veralink:currentShiftId';
@@ -39,6 +41,7 @@ const isValidUUID = (str: string): boolean => {
 };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [workerId, setWorkerId] = useState<string | null>(null);
   const [workerName, setWorkerName] = useState<string | null>(null);
@@ -118,14 +121,24 @@ export default function HomeScreen() {
         // Check for existing shift
         try {
           const shiftId = await AsyncStorage.getItem(STORAGE_KEY);
-          if (shiftId) {
-            // Verify shift still exists in database
+          if (shiftId && isValidUUID(shiftId)) {
+            // Verify shift still exists in database with retry logic
             try {
-              const { data, error } = await supabase
-                .from('shifts')
-                .select('id, clock_out_time, clock_in_time')
-                .eq('id', shiftId)
-                .single();
+              const result = await retryOperation(
+                async () => {
+                  const queryResult = await supabase
+                    .from('shifts')
+                    .select('id, clock_out_time, clock_in_time')
+                    .eq('id', shiftId)
+                    .single();
+                  
+                  if (queryResult.error) throw queryResult.error;
+                  return queryResult;
+                },
+                { maxRetries: 2, initialDelay: 500 }
+              );
+
+              const { data, error } = result;
 
               if (!error && data && !data.clock_out_time) {
                 setCurrentShiftId(shiftId);
@@ -137,13 +150,20 @@ export default function HomeScreen() {
               } else {
                 // Shift completed or doesn't exist, clear storage
                 await AsyncStorage.removeItem(STORAGE_KEY);
+                setCurrentShiftId(null);
+                setIsClockedIn(false);
               }
             } catch (dbError) {
               console.log('Could not verify shift in database:', dbError);
-              // Assume shift is still active if we can't verify
-              setCurrentShiftId(shiftId);
-              setIsClockedIn(true);
+              // Don't assume shift is active if verification fails
+              // Clear the stored shift ID to prevent orphaned state
+              await AsyncStorage.removeItem(STORAGE_KEY);
+              setCurrentShiftId(null);
+              setIsClockedIn(false);
             }
+          } else if (shiftId) {
+            // Invalid UUID stored, clear it
+            await AsyncStorage.removeItem(STORAGE_KEY);
           }
         } catch (e) {
           console.log('Could not check shift:', e);
@@ -166,27 +186,38 @@ export default function HomeScreen() {
       return;
     }
 
-    const interval = setInterval(() => {
+    // Initial calculation
+    const calculateDuration = () => {
+      if (!clockInTime) return;
       const now = new Date();
       const diff = now.getTime() - clockInTime.getTime();
-      
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
       setShiftDuration({ hours, minutes, seconds });
-    }, 1000);
+    };
 
-    // Initial calculation
-    const now = new Date();
-    const diff = now.getTime() - clockInTime.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    setShiftDuration({ hours, minutes, seconds });
+    // Calculate immediately
+    calculateDuration();
 
-    return () => clearInterval(interval);
+    // Set up interval
+    const interval = setInterval(calculateDuration, 1000);
+
+    // Cleanup function - ensure interval is cleared on unmount or when dependencies change
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
   }, [isClockedIn, clockInTime]);
+
+  // Cleanup effect on unmount to ensure timer is stopped
+  useEffect(() => {
+    return () => {
+      // Component is unmounting, ensure all intervals are cleared
+      setShiftDuration({ hours: 0, minutes: 0, seconds: 0 });
+    };
+  }, []);
 
   const handleWorkerLogin = async (id: string, name: string, email: string) => {
     try {
@@ -206,19 +237,38 @@ export default function HomeScreen() {
   const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
     try {
       if (!Location || typeof Location.getCurrentPositionAsync !== 'function') {
+        console.log('Location service not available');
         return null;
       }
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      // Check current permission status first
+      let { status } = await Location.getForegroundPermissionsAsync();
+      
+      if (status === 'denied') {
+        console.log('Location permission permanently denied');
+        // Don't show alert here - let the caller handle it
         return null;
+      }
+
+      if (status !== 'granted') {
+        // Request permission
+        const permissionResponse = await Location.requestForegroundPermissionsAsync();
+        status = permissionResponse.status;
+        
+        if (status !== 'granted') {
+          console.log('Location permission denied by user');
+          // Silent failure - location is optional for clock in/out
+          return null;
+        }
       }
 
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
+        timeout: 10000, // 10 second timeout
       });
 
       if (!location || !location.coords) {
+        console.log('Location data not available');
         return null;
       }
 
@@ -226,8 +276,9 @@ export default function HomeScreen() {
         lat: location.coords.latitude,
         lng: location.coords.longitude,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting location:', error);
+      // Location is optional, so we don't throw - just return null
       return null;
     }
   };
@@ -248,13 +299,23 @@ export default function HomeScreen() {
       return;
     }
 
-    // Verify worker exists in database before clocking in
+    // Verify worker exists in database before clocking in with retry
     try {
-      const { data: workerData, error: workerError } = await supabase
-        .from('workers')
-        .select('id, name, email')
-        .eq('id', workerId)
-        .single();
+      const workerResult = await retryOperation(
+        async () => {
+          const queryResult = await supabase
+            .from('workers')
+            .select('id, name, email')
+            .eq('id', workerId)
+            .single();
+          
+          if (queryResult.error) throw queryResult.error;
+          return queryResult;
+        },
+        { maxRetries: 2, initialDelay: 500 }
+      );
+
+      const { data: workerData, error: workerError } = workerResult;
 
       if (workerError || !workerData) {
         Alert.alert(
@@ -272,13 +333,12 @@ export default function HomeScreen() {
         );
         return;
       }
-    } catch (verifyError) {
+    } catch (verifyError: any) {
       console.error('Error verifying worker:', verifyError);
-      Alert.alert(
-        'Verification Error',
-        'Failed to verify your worker account. Please try again.',
-        [{ text: 'OK' }]
-      );
+      const errorMessage = isNetworkError(verifyError)
+        ? 'Network connection issue. Please check your internet and try again.'
+        : 'Failed to verify your worker account. Please try again.';
+      Alert.alert('Verification Error', errorMessage, [{ text: 'OK' }]);
       return;
     }
 
@@ -287,39 +347,52 @@ export default function HomeScreen() {
       // Get location (optional - won't fail if unavailable)
       const location = await getCurrentLocation();
 
-      // Save to database - start with required fields only
-      let shiftData: any = {
-        worker_id: workerId,
-        clock_in_time: new Date().toISOString(),
-      };
+      // Save to database with retry logic
+      const shiftResult = await retryOperation(
+        async () => {
+          // Start with required fields only
+          let shiftData: any = {
+            worker_id: workerId,
+            clock_in_time: new Date().toISOString(),
+          };
 
-      // Try to insert with location first, fallback without if columns don't exist
-      if (location) {
-        shiftData.clock_in_lat = location.lat;
-        shiftData.clock_in_lng = location.lng;
-      }
+          // Try to insert with location first
+          if (location) {
+            shiftData.clock_in_lat = location.lat;
+            shiftData.clock_in_lng = location.lng;
+          }
 
-      let { data, error } = await supabase
-        .from('shifts')
-        .insert(shiftData)
-        .select()
-        .single();
+          let result = await supabase
+            .from('shifts')
+            .insert(shiftData)
+            .select()
+            .single();
 
-      // If error is about missing columns, retry without location
-      if (error && (error.message?.includes('clock_in_lat') || error.message?.includes('clock_in_lng') || error.code === '42703')) {
-        console.log('Location columns not found, retrying without location');
-        shiftData = {
-          worker_id: workerId,
-          clock_in_time: new Date().toISOString(),
-        };
-        const retryResult = await supabase
-          .from('shifts')
-          .insert(shiftData)
-          .select()
-          .single();
-        data = retryResult.data;
-        error = retryResult.error;
-      }
+          // If error is about missing columns, retry without location
+          if (result.error && (result.error.message?.includes('clock_in_lat') || result.error.message?.includes('clock_in_lng') || result.error.code === '42703')) {
+            console.log('Location columns not found, retrying without location');
+            shiftData = {
+              worker_id: workerId,
+              clock_in_time: new Date().toISOString(),
+            };
+            result = await supabase
+              .from('shifts')
+              .insert(shiftData)
+              .select()
+              .single();
+          }
+
+          if (result.error) throw result.error;
+          return result;
+        },
+        {
+          maxRetries: 3,
+          initialDelay: 1000,
+          shouldRetry: (err) => isNetworkError(err) || (err?.code && ['08000', '08003', '08006', '08001'].includes(err.code)), // SQL connection errors
+        }
+      );
+
+      const { data, error } = shiftResult;
 
       if (error) {
         console.error('Supabase error details:', {
@@ -329,15 +402,20 @@ export default function HomeScreen() {
           hint: error.hint,
         });
         
-        // Check if it's still a foreign key error
+        // Provide context-specific error messages
+        let errorMessage: string;
         if (error.code === '23503' || error.message?.includes('foreign key')) {
-          Alert.alert(
-            'Database Error',
-            'The foreign key constraint still exists. Please run this SQL in Supabase:\n\nALTER TABLE shifts DROP CONSTRAINT IF EXISTS shifts_worker_id_fkey;'
-          );
+          errorMessage = 'Database configuration error. Please contact support.';
+        } else if (isNetworkError(error)) {
+          errorMessage = getNetworkErrorMessage(error);
+        } else if (isSupabaseError(error)) {
+          errorMessage = error.details || error.hint || error.message || 'Database error. Please try again.';
+        } else {
+          errorMessage = error.message || 'Failed to clock in. Please try again.';
         }
         
-        throw error;
+        Alert.alert('Clock In Failed', errorMessage);
+        return;
       }
 
       if (data) {
@@ -349,8 +427,10 @@ export default function HomeScreen() {
       }
     } catch (error: any) {
       console.error('Error clocking in:', error);
-      const errorMessage = error.details || error.hint || error.message || 'Failed to clock in. Please try again.';
-      Alert.alert('Error', errorMessage);
+      const errorMessage = isNetworkError(error)
+        ? getNetworkErrorMessage(error)
+        : error.details || error.hint || error.message || 'Failed to clock in. Please try again.';
+      Alert.alert('Clock In Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -385,47 +465,61 @@ export default function HomeScreen() {
         durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       }
 
-      // Update shift in database - start with required fields
-      let updateData: any = {
-        clock_out_time: now.toISOString(),
-        shift_duration: durationFormatted,
-      };
+      // Update shift in database with retry logic
+      const updateResult = await retryOperation(
+        async () => {
+          // Start with required fields
+          let updateData: any = {
+            clock_out_time: now.toISOString(),
+            shift_duration: durationFormatted,
+          };
 
-      // Add shift notes if provided
-      if (notes && notes.trim()) {
-        updateData.shift_notes = notes.trim();
-      }
+          // Add shift notes if provided
+          if (notes && notes.trim()) {
+            updateData.shift_notes = notes.trim();
+          }
 
-      // Add location if available
-      if (location) {
-        updateData.clock_out_lat = location.lat;
-        updateData.clock_out_lng = location.lng;
-      }
+          // Add location if available
+          if (location) {
+            updateData.clock_out_lat = location.lat;
+            updateData.clock_out_lng = location.lng;
+          }
 
-      let { error } = await supabase
-        .from('shifts')
-        .update(updateData)
-        .eq('id', currentShiftId);
+          let result = await supabase
+            .from('shifts')
+            .update(updateData)
+            .eq('id', currentShiftId);
 
-      // If error is about missing columns, retry without them
-      if (error && (error.message?.includes('clock_out_lat') || error.message?.includes('clock_out_lng') || error.message?.includes('shift_duration'))) {
-        console.log('Some columns not found, retrying with minimal data');
-        updateData = {
-          clock_out_time: now.toISOString(),
-        };
-        // Try to include shift_duration if column exists
-        if (!error.message?.includes('shift_duration')) {
-          updateData.shift_duration = durationFormatted;
+          // If error is about missing columns, retry without them
+          if (result.error && (result.error.message?.includes('clock_out_lat') || result.error.message?.includes('clock_out_lng') || result.error.message?.includes('shift_duration'))) {
+            console.log('Some columns not found, retrying with minimal data');
+            updateData = {
+              clock_out_time: now.toISOString(),
+            };
+            // Try to include shift_duration if column exists
+            if (!result.error.message?.includes('shift_duration')) {
+              updateData.shift_duration = durationFormatted;
+            }
+            if (notes && notes.trim()) {
+              updateData.shift_notes = notes.trim();
+            }
+            result = await supabase
+              .from('shifts')
+              .update(updateData)
+              .eq('id', currentShiftId);
+          }
+
+          if (result.error) throw result.error;
+          return result;
+        },
+        {
+          maxRetries: 3,
+          initialDelay: 1000,
+          shouldRetry: (err) => isNetworkError(err) || (err?.code && ['08000', '08003', '08006', '08001'].includes(err.code)), // SQL connection errors
         }
-        if (notes && notes.trim()) {
-          updateData.shift_notes = notes.trim();
-        }
-        const retryResult = await supabase
-          .from('shifts')
-          .update(updateData)
-          .eq('id', currentShiftId);
-        error = retryResult.error;
-      }
+      );
+
+      const { error } = updateResult;
 
       if (error) {
         console.error('Supabase error details:', {
@@ -434,7 +528,19 @@ export default function HomeScreen() {
           details: error.details,
           hint: error.hint,
         });
-        throw error;
+        
+        // Provide context-specific error messages
+        let errorMessage: string;
+        if (isNetworkError(error)) {
+          errorMessage = getNetworkErrorMessage(error);
+        } else if (isSupabaseError(error)) {
+          errorMessage = error.details || error.hint || error.message || 'Database error. Please try again.';
+        } else {
+          errorMessage = error.message || 'Failed to clock out. Please try again.';
+        }
+        
+        Alert.alert('Clock Out Failed', errorMessage);
+        return;
       }
 
       // Clear local storage - remove shift and worker credentials for security
@@ -457,8 +563,10 @@ export default function HomeScreen() {
       router.replace('/');
     } catch (error: any) {
       console.error('Error clocking out:', error);
-      const errorMessage = error.details || error.hint || error.message || 'Failed to clock out. Please try again.';
-      Alert.alert('Error', errorMessage);
+      const errorMessage = isNetworkError(error)
+        ? getNetworkErrorMessage(error)
+        : error.details || error.hint || error.message || 'Failed to clock out. Please try again.';
+      Alert.alert('Clock Out Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
