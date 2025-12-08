@@ -27,8 +27,7 @@ interface WorkerLoginModalProps {
 
 export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModalProps) {
   const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [uuidLast4, setUuidLast4] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const translateY = useSharedValue(500);
@@ -40,8 +39,7 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
       opacity.value = withTiming(1, { duration: 300 });
       setError(null);
       setEmail('');
-      setName('');
-      setUuidLast4('');
+      setPassword('');
     } else {
       translateY.value = withTiming(500, { duration: 300 });
       opacity.value = withTiming(0, { duration: 300 });
@@ -55,37 +53,24 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
 
   const handleLogin = async () => {
     // Client-side validation
-    const trimmedEmail = email.trim();
-    const trimmedName = name.trim();
-    const trimmedUuid = uuidLast4.trim().toLowerCase();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
 
-    if (!trimmedEmail || !trimmedName || !trimmedUuid) {
-      setError('Please enter email, name, and UUID last 4 digits');
+    if (!trimmedEmail || !trimmedPassword) {
+      setError('Please enter email and password');
       return;
     }
 
-    // UUID last 4 validation (must be 4 characters, hexadecimal)
-    if (trimmedUuid.length !== 4) {
-      setError('UUID must be exactly 4 characters');
-      return;
-    }
-
-    const uuidRegex = /^[0-9a-f]{4}$/i;
-    if (!uuidRegex.test(trimmedUuid)) {
-      setError('UUID must be 4 hexadecimal characters (0-9, a-f)');
-      return;
-    }
-
-    // Basic email format validation
+    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       setError('Please enter a valid email address');
       return;
     }
 
-    // Name validation (at least 2 characters)
-    if (trimmedName.length < 2) {
-      setError('Name must be at least 2 characters long');
+    // Password validation
+    if (trimmedPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
 
@@ -93,63 +78,63 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
     setError(null);
 
     try {
-      // Look up worker by email and name (case-insensitive for email, exact match for name)
       const { supabase } = await import('@/lib/supabase');
-      const { data, error: lookupError } = await supabase
+      
+      // FIRST: Get worker record by email (using anonymous access - avoids RLS timing issues)
+      // This query happens before authentication, so it uses anonymous policy
+      const { data: workerData, error: workerError } = await supabase
         .from('workers')
         .select('id, name, email')
-        .ilike('email', trimmedEmail.toLowerCase())
-        .eq('name', trimmedName)
+        .eq('email', trimmedEmail)
         .single();
 
-      if (lookupError) {
-        console.error('Database lookup error:', lookupError);
-        if (lookupError.code === 'PGRST116') {
-          // No rows returned
-          setError('Worker not found. Please check your email and name match the database.');
+      if (workerError) {
+        console.error('Worker lookup error:', workerError);
+        
+        // Provide specific error messages
+        if (workerError.code === 'PGRST301' || workerError.message?.includes('permission denied') || workerError.message?.includes('403')) {
+          setError('Permission denied. Please ensure RLS policy "Allow anonymous reads on workers" exists. See FIX_RLS_POLICIES.sql');
+        } else if (workerError.code === 'PGRST116') {
+          setError('Worker account not found. Please ensure the worker exists in the workers table with matching email.');
         } else {
-          setError('Database error. Please try again.');
+          setError(`Database error: ${workerError.message || 'Please contact support.'}`);
         }
         setIsLoading(false);
         return;
       }
 
-      if (!data) {
-        setError('Worker not found. Please check your email and name match the database.');
+      if (!workerData) {
+        setError('Worker account not found. Please ensure the worker exists in the workers table.');
         setIsLoading(false);
         return;
       }
 
-      // Verify the worker exists and is valid
-      if (!data.id) {
-        setError('Invalid worker data. Please contact support.');
-        setIsLoading(false);
-        return;
-      }
+      // SECOND: Authenticate with Supabase Auth (after we know worker exists)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: trimmedPassword,
+      });
 
-      // Verify UUID last 4 matches
-      const trimmedUuid = uuidLast4.trim().toLowerCase();
-      if (trimmedUuid.length !== 4) {
-        setError('UUID must be exactly 4 characters');
-        setIsLoading(false);
-        return;
-      }
-
-      const workerUuidLast4 = data.id.slice(-4).toLowerCase();
-      if (workerUuidLast4 !== trimmedUuid) {
-        setError('UUID verification failed. Please check the last 4 digits of your UUID.');
+      if (authError || !authData.user) {
+        // Provide user-friendly error messages
+        if (authError?.message?.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please try again.');
+        } else if (authError?.message?.includes('Email not confirmed')) {
+          setError('Please verify your email before logging in.');
+        } else {
+          setError(authError?.message || 'Login failed. Please check your credentials and try again.');
+        }
         setIsLoading(false);
         return;
       }
 
       // Worker found and validated, return their UUID
-      onLogin(data.id, data.name, data.email);
+      onLogin(workerData.id, workerData.name, workerData.email);
       setEmail('');
-      setName('');
-      setUuidLast4('');
+      setPassword('');
     } catch (err: any) {
-      console.error('Error looking up worker:', err);
-      setError(err.message || 'Failed to verify worker. Please try again.');
+      console.error('Error during login:', err);
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -184,7 +169,7 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
               Worker Login
             </ThemedText>
             <ThemedText style={styles.subtitle}>
-              Enter your email, name, and UUID last 4 digits to start your shift
+              Enter your email and password to start your shift
             </ThemedText>
 
             {error && (
@@ -212,34 +197,17 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
 
             <TextInput
               style={styles.input}
-              placeholder="Full Name"
+              placeholder="Password"
               placeholderTextColor="rgba(255, 255, 255, 0.5)"
-              value={name}
+              value={password}
               onChangeText={(text) => {
-                setName(text);
+                setPassword(text);
                 setError(null);
               }}
-              autoCapitalize="words"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="UUID Last 4 (e.g., 0341)"
-              placeholderTextColor="rgba(255, 255, 255, 0.5)"
-              value={uuidLast4}
-              onChangeText={(text) => {
-                // Only allow hexadecimal characters, max 4 characters
-                const filtered = text.replace(/[^0-9a-fA-F]/g, '').slice(0, 4);
-                setUuidLast4(filtered);
-                setError(null);
-              }}
+              secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              maxLength={4}
               editable={!isLoading}
-              keyboardType="default"
             />
           </View>
 

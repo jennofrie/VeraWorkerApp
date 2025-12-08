@@ -228,7 +228,7 @@ export default function TimesheetScreen() {
 
   return (
     <LinearGradient
-      colors={['#1F1D2B', '#2B2B40']}
+      colors={['#E6F4FE', '#F0F8FF']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.gradientBackground}
@@ -237,7 +237,7 @@ export default function TimesheetScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.menuButton}>
-            <IconSymbol name="line.3.horizontal" size={24} color="#FFFFFF" />
+            <IconSymbol name="line.3.horizontal" size={24} color="#1F1D2B" />
           </TouchableOpacity>
           <ThemedText type="title" style={styles.headerTitle}>
             Timesheet
@@ -277,7 +277,7 @@ export default function TimesheetScreen() {
                 <ThemedText style={styles.dateRangeText}>
                   {getCurrentWeekRange()}
                 </ThemedText>
-                <IconSymbol name="chevron.right" size={16} color="rgba(255, 255, 255, 0.6)" />
+                <IconSymbol name="chevron.right" size={16} color="#666" />
               </View>
               <View style={styles.totalHoursContainer}>
                 <ThemedText style={styles.totalHoursText}>{currentWeekTotal}</ThemedText>
@@ -620,9 +620,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1F1D2B',
   },
   addButton: {
     width: 40,
@@ -641,14 +641,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 18,
     height: 2,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F1D2B',
     borderRadius: 1,
   },
   plusVertical: {
     position: 'absolute',
     width: 2,
     height: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F1D2B',
     borderRadius: 1,
   },
   dateRangeContainer: {
@@ -659,10 +659,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
   },
   androidDateOverlay: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#FFFFFF',
   },
   dateRangeContent: {
     flexDirection: 'row',
@@ -674,20 +675,20 @@ const styles = StyleSheet.create({
   dateRangeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#1F1D2B',
   },
   totalHoursContainer: {
-    backgroundColor: 'rgba(0, 212, 170, 0.2)',
+    backgroundColor: '#E6F9F4',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(0, 212, 170, 0.3)',
+    borderColor: '#22B07D',
   },
   totalHoursText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#00D4AA',
+    color: '#22B07D',
   },
   scrollView: {
     flex: 1,
@@ -709,28 +710,34 @@ const styles = StyleSheet.create({
   weekRangeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#666',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   weekTotalHours: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#00D4AA',
+    color: '#22B07D',
   },
   entryCard: {
     marginBottom: 12,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   entryBlur: {
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   androidEntryOverlay: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#FFFFFF',
   },
   entryContent: {
     flexDirection: 'row',
@@ -769,7 +776,7 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1F1D2B',
     marginBottom: 8,
   },
   timeRow: {
@@ -780,7 +787,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#666',
     fontWeight: '500',
   },
   dateRow: {
@@ -790,7 +797,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#999',
     fontWeight: '500',
   },
   modalContainer: {
@@ -821,12 +828,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1F1D2B',
     textAlign: 'center',
     marginBottom: 20,
   },
   weekRangeContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
@@ -834,7 +841,7 @@ const styles = StyleSheet.create({
   },
   weekRangeText: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: '#1F1D2B',
     fontWeight: '600',
   },
   dateNavigationContainer: {
@@ -850,34 +857,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 14,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: '#E0E0E0',
     gap: 8,
   },
   navButtonPrimary: {
-    backgroundColor: 'rgba(0, 212, 170, 0.2)',
-    borderColor: 'rgba(0, 212, 170, 0.4)',
+    backgroundColor: '#E6F9F4',
+    borderColor: '#22B07D',
   },
   navButtonText: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#1F1D2B',
     fontWeight: '600',
   },
   navButtonPrimaryText: {
     fontSize: 14,
-    color: '#00D4AA',
+    color: '#22B07D',
     fontWeight: '700',
   },
   closeButton: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#F5F5F5',
     alignItems: 'center',
   },
   closeButtonText: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: '#1F1D2B',
     fontWeight: '600',
   },
   modalScrollView: {
@@ -892,11 +899,11 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#1F1D2B',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,

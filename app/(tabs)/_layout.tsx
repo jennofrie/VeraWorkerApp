@@ -15,6 +15,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: { display: 'none' }, // Hide tab bar - using drawer navigation instead
       }}>
       <Tabs.Screen
         name="index"
@@ -35,6 +36,69 @@ export default function TabLayout() {
         options={{
           title: 'Timesheet',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="clock.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notification"
+        options={{
+          title: 'Notification',
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="job-board"
+        options={{
+          title: 'Job Board',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="availability"
+        options={{
+          title: 'Availability',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="my-forms"
+        options={{
+          title: 'My Forms',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="my-documents"
+        options={{
+          title: 'My Documents',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="document-hub"
+        options={{
+          title: 'Document Hub',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{
+          title: 'About',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="client-detail"
+        options={{
+          title: 'Client Detail',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="clock-in"
+        options={{
+          title: 'Clock In',
+          href: null,
         }}
       />
     </Tabs>

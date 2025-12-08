@@ -29,8 +29,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
   const [email, setEmail] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [uuidLast4, setUuidLast4] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,24 +63,11 @@ export default function LoginScreen() {
 
   const handleEmailLogin = async () => {
     // Client-side validation
-    const trimmedEmail = email.trim();
-    const trimmedName = fullName.trim();
-    const trimmedUuid = uuidLast4.trim().toLowerCase();
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
 
-    if (!trimmedEmail || !trimmedName || !trimmedUuid) {
-      setError('Please enter email, full name, and UUID last 4 digits');
-      return;
-    }
-
-    // UUID last 4 validation
-    if (trimmedUuid.length !== 4) {
-      setError('UUID must be exactly 4 characters');
-      return;
-    }
-
-    const uuidRegex = /^[0-9a-f]{4}$/i;
-    if (!uuidRegex.test(trimmedUuid)) {
-      setError('UUID must be 4 hexadecimal characters (0-9, a-f)');
+    if (!trimmedEmail || !trimmedPassword) {
+      setError('Please enter email and password');
       return;
     }
 
@@ -92,9 +78,9 @@ export default function LoginScreen() {
       return;
     }
 
-    // Name validation
-    if (trimmedName.length < 2) {
-      setError('Full name must be at least 2 characters long');
+    // Password validation
+    if (trimmedPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
 
@@ -102,40 +88,67 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      // Look up worker by email and name
       const { supabase } = await import('@/lib/supabase');
-      const { data, error: lookupError } = await supabase
+      
+      // FIRST: Get worker record by email (using anonymous access - avoids RLS timing issues)
+      // This query happens before authentication, so it uses anonymous policy
+      const { data: workerData, error: workerError } = await supabase
         .from('workers')
         .select('id, name, email')
-        .ilike('email', trimmedEmail.toLowerCase())
-        .eq('name', trimmedName)
+        .eq('email', trimmedEmail)
         .single();
 
-      if (lookupError || !data) {
-        setError('Worker not found. Please check your email and name match the database.');
+      if (workerError) {
+        console.error('Worker lookup error:', workerError);
+        
+        // Provide specific error messages
+        if (workerError.code === 'PGRST301' || workerError.message?.includes('permission denied') || workerError.message?.includes('403')) {
+          setError('Permission denied. Please ensure RLS policy "Allow anonymous reads on workers" exists. See FIX_RLS_POLICIES.sql');
+        } else if (workerError.code === 'PGRST116') {
+          setError('Worker account not found. Please ensure the worker exists in the workers table with matching email.');
+        } else {
+          setError(`Database error: ${workerError.message || 'Please contact support.'}`);
+        }
         setIsLoading(false);
         return;
       }
 
-      // Verify UUID last 4 matches
-      const workerUuidLast4 = data.id.slice(-4).toLowerCase();
-      if (workerUuidLast4 !== trimmedUuid) {
-        setError('UUID verification failed. Please check the last 4 digits of your UUID.');
+      if (!workerData) {
+        setError('Worker account not found. Please ensure the worker exists in the workers table.');
         setIsLoading(false);
         return;
       }
 
-      // Login successful
+      // SECOND: Authenticate with Supabase Auth (after we know worker exists)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: trimmedPassword,
+      });
+
+      if (authError || !authData.user) {
+        // Provide user-friendly error messages
+        if (authError?.message?.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please try again.');
+        } else if (authError?.message?.includes('Email not confirmed')) {
+          setError('Please verify your email before logging in.');
+        } else {
+          setError(authError?.message || 'Login failed. Please check your credentials and try again.');
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Login successful - store worker info
       await AsyncStorage.multiSet([
-        [WORKER_ID_KEY, data.id],
-        ['@veralink:workerName', data.name],
-        ['@veralink:workerEmail', data.email],
+        [WORKER_ID_KEY, workerData.id],
+        ['@veralink:workerName', workerData.name],
+        ['@veralink:workerEmail', workerData.email],
       ]);
       
       router.replace('/(tabs)');
     } catch (err: any) {
-      console.error('Error looking up worker:', err);
-      setError(err.message || 'Failed to verify worker. Please try again.');
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -223,37 +236,19 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>Full Name</ThemedText>
+              <ThemedText style={styles.inputLabel}>Password</ThemedText>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your full name"
+                placeholder="Enter your password"
                 placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                value={fullName}
+                value={password}
                 onChangeText={(text) => {
-                  setFullName(text);
+                  setPassword(text);
                   setError(null);
                 }}
-                autoCapitalize="words"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <ThemedText style={styles.inputLabel}>UUID Last 4</ThemedText>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter last 4 digits of UUID"
-                placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                value={uuidLast4}
-                onChangeText={(text) => {
-                  const filtered = text.replace(/[^0-9a-fA-F]/g, '').slice(0, 4);
-                  setUuidLast4(filtered);
-                  setError(null);
-                }}
+                secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
-                maxLength={4}
                 editable={!isLoading}
               />
             </View>
