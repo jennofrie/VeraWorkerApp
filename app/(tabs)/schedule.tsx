@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   RefreshControl,
-  PanResponder,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -67,16 +66,6 @@ export default function ScheduleScreen() {
     const dateFrom = formatDateForQuery(weekStart);
     const dateTo = formatDateForQuery(weekEnd);
     
-    // Debug: Log week range calculation
-    console.log('[ScheduleScreen] Week range calculated:', {
-      currentWeekStart: currentWeekStart.toISOString(),
-      weekStart: weekStart.toISOString(),
-      weekEnd: weekEnd.toISOString(),
-      dateFrom,
-      dateTo,
-      includesDec14: dateFrom <= '2025-12-14' && dateTo >= '2025-12-14',
-    });
-    
     return {
       dateFrom,
       dateTo,
@@ -94,20 +83,6 @@ export default function ScheduleScreen() {
     const weekStart = getWeekStart(currentWeekStart);
     const days: DaySchedule[] = [];
     
-    // Debug: Log all schedules received
-    console.log('[ScheduleScreen] All schedules received:', {
-      totalSchedules: schedules.length,
-      schedules: schedules.map(s => ({
-        id: s.id,
-        scheduled_date: s.scheduled_date,
-        start_time: s.start_time,
-        end_time: s.end_time,
-        worker_id: s.worker_id,
-        location_name: s.location_name,
-      })),
-      dec14Schedule: schedules.find(s => s.scheduled_date === '2025-12-14'),
-    });
-    
     // Generate 7 days (Monday to Sunday)
     for (let i = 0; i < 7; i++) {
       const date = new Date(weekStart);
@@ -118,19 +93,6 @@ export default function ScheduleScreen() {
       const daySchedules = schedules.filter(
         (schedule) => schedule.scheduled_date === dateString
       );
-      
-      // Debug: Log if December 14 is found
-      if (dateString === '2025-12-14') {
-        console.log('[ScheduleScreen] December 14, 2025 processing:', {
-          dateString,
-          daySchedulesFound: daySchedules.length,
-          daySchedules: daySchedules.map(s => ({
-            id: s.id,
-            start_time: s.start_time,
-            end_time: s.end_time,
-          })),
-        });
-      }
       
       // Map schedules to time slots
       const timeSlots: TimeSlot[] = daySchedules.map((schedule) => ({
@@ -175,7 +137,9 @@ export default function ScheduleScreen() {
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(today.setDate(diff));
+    const monday = new Date(today);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
     setCurrentWeekStart(monday);
     
     // Find today's index in the week (0-6, where 0 is Monday)
@@ -183,67 +147,14 @@ export default function ScheduleScreen() {
     setSelectedDate(todayDayOfWeek);
   };
 
-  // PanResponder for swipe gestures on calendar section
-  const swipeStartX = useRef<number | null>(null);
-  
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt) => {
-        // Capture the starting X position
-        swipeStartX.current = evt.nativeEvent.pageX;
-        return false; // Don't capture immediately
-      },
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to horizontal swipes (more horizontal than vertical)
-        const { dx, dy } = gestureState;
-        // Require significant horizontal movement and minimal vertical movement
-        return Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dx) > 30;
-      },
-      onPanResponderGrant: () => {
-        // Disable scrolling temporarily when gesture starts
-        if (datePickerRef.current) {
-          datePickerRef.current.setNativeProps({ scrollEnabled: false });
-        }
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        // Re-enable scrolling
-        if (datePickerRef.current) {
-          datePickerRef.current.setNativeProps({ scrollEnabled: true });
-        }
-        
-        const { dx, vx } = gestureState;
-        const SWIPE_THRESHOLD = 50; // Minimum swipe distance in pixels
-        const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum swipe velocity
-
-        // Check if swipe is significant enough (distance or velocity)
-        if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(vx) > SWIPE_VELOCITY_THRESHOLD) {
-          if (dx > 0 || vx > 0) {
-            // Swipe right - go to previous week
-            goToPreviousWeek();
-          } else {
-            // Swipe left - go to next week
-            goToNextWeek();
-          }
-        }
-        
-        swipeStartX.current = null;
-      },
-      onPanResponderTerminate: () => {
-        // Re-enable scrolling if gesture is cancelled
-        if (datePickerRef.current) {
-          datePickerRef.current.setNativeProps({ scrollEnabled: true });
-        }
-        swipeStartX.current = null;
-      },
-    })
-  ).current;
-
   // Get current week range for display
   const weekRange = useMemo(() => {
     const start = new Date(currentWeekStart);
     const day = start.getDay();
     const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(start.setDate(diff));
+    const monday = new Date(start);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     
@@ -341,10 +252,9 @@ export default function ScheduleScreen() {
             </View>
           )}
 
-          {/* Date Picker - Swipeable for week navigation */}
+          {/* Date Picker */}
           {!error && (
             <View
-              {...panResponder.panHandlers}
               style={styles.datePickerWrapper}
             >
               <ScrollView

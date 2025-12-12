@@ -58,24 +58,6 @@ export default function ScheduleHomeScreen() {
     const dateFrom = formatDateForQuery(weekStart);
     const dateTo = formatDateForQuery(weekEnd);
     
-    // Debug: Log week range calculation
-    const includesDec14 = dateFrom <= '2025-12-14' && dateTo >= '2025-12-14';
-    console.log('[ScheduleHomeScreen] Week range calculated:', {
-      currentDate: currentDate.toISOString(),
-      weekStart: weekStart.toISOString(),
-      weekEnd: weekEnd.toISOString(),
-      dateFrom,
-      dateTo,
-      includesDec14,
-      'December 14 in range?': includesDec14 ? '✅ YES' : '❌ NO - Navigate to Dec 8-14 week!',
-    });
-    
-    if (!includesDec14) {
-      console.warn('[ScheduleHomeScreen] ⚠️ December 14, 2025 is NOT in current week range!');
-      console.warn('[ScheduleHomeScreen] Current week:', dateFrom, 'to', dateTo);
-      console.warn('[ScheduleHomeScreen] December 14 week should be: 2025-12-08 to 2025-12-14');
-    }
-    
     return {
       dateFrom,
       dateTo,
@@ -90,39 +72,13 @@ export default function ScheduleHomeScreen() {
 
   // Convert WorkerSchedule to ClientShift format
   const clientShifts = useMemo(() => {
-    const dec14Schedule = schedules.find(s => s.scheduled_date === '2025-12-14');
-    
-    console.log('[ScheduleHomeScreen] Converting schedules to clientShifts:');
-    console.log('  Total schedules received:', schedules.length);
-    console.log('  All schedule dates:', schedules.map(s => s.scheduled_date).join(', ') || 'NONE');
-    console.log('  December 14 schedule:', dec14Schedule ? '✅ FOUND' : '❌ NOT FOUND');
-    
-    if (dec14Schedule) {
-      console.log('  December 14 details:', {
-        id: dec14Schedule.id,
-        scheduled_date: dec14Schedule.scheduled_date,
-        start_time: dec14Schedule.start_time,
-        end_time: dec14Schedule.end_time,
-        worker_id: dec14Schedule.worker_id,
-        location_name: dec14Schedule.location_name,
-        location_address: dec14Schedule.location_address,
-        status: dec14Schedule.status,
-      });
-    } else if (schedules.length > 0) {
-      console.warn('  ⚠️ December 14 schedule NOT in results, but other schedules exist');
-      console.warn('  ⚠️ Check if you are viewing the correct week (Dec 8-14, 2025)');
-    } else {
-      console.warn('  ⚠️ NO schedules returned from database');
-      console.warn('  ⚠️ Possible issues: RLS blocking, wrong worker_id, or no schedules exist');
-    }
-
     return schedules.map((schedule) => {
       // Ensure date is in YYYY-MM-DD format (handle any timezone issues)
       const scheduleDateStr = schedule.scheduled_date.split('T')[0]; // Remove time if present
       const scheduleDate = new Date(scheduleDateStr + 'T00:00:00');
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       
-      const clientShift = {
+      return {
         id: schedule.id,
         clientName: schedule.location_name || 'Client',
         serviceType: 'Scheduled Shift',
@@ -136,17 +92,6 @@ export default function ScheduleHomeScreen() {
         longitude: undefined,
         status: schedule.status === 'cancelled' ? 'COMPLETED' : 'BOOKED' as 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED',
       };
-      
-      // Debug December 14 conversion
-      if (scheduleDateStr === '2025-12-14') {
-        console.log('[ScheduleHomeScreen] Converting December 14 schedule to ClientShift:');
-        console.log('  Original scheduled_date:', schedule.scheduled_date);
-        console.log('  Normalized date:', scheduleDateStr);
-        console.log('  ClientShift date:', clientShift.date);
-        console.log('  ClientShift object:', clientShift);
-      }
-      
-      return clientShift;
     });
   }, [schedules]);
 
@@ -186,10 +131,6 @@ export default function ScheduleHomeScreen() {
     startOfWeek.setDate(startOfWeek.getDate() + diff);
     startOfWeek.setHours(0, 0, 0, 0);
     
-    console.log('[ScheduleHomeScreen] Generating weekDays:');
-    console.log('  currentDate:', currentDate.toISOString());
-    console.log('  startOfWeek (Monday):', startOfWeek.toISOString());
-    
     for (let i = 0; i < 7; i++) {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
@@ -204,23 +145,6 @@ export default function ScheduleHomeScreen() {
         dayNumber: date.getDate().toString(),
         date: dateString,
       });
-      
-      if (dateString === '2025-12-14') {
-        console.log(`  ✅ December 14 found in weekDays at index ${i} (${dayNames[i]})`);
-        console.log(`    weekDays date string: "${dateString}"`);
-      }
-    }
-    
-    console.log('  All weekDays dates:', days.map(d => `"${d.date}"`).join(', '));
-    console.log('  Includes Dec 14?', days.some(d => d.date === '2025-12-14') ? '✅ YES' : '❌ NO');
-    
-    // Debug: Show exact date strings for December 14 comparison
-    const dec14Day = days.find(d => d.date === '2025-12-14');
-    if (dec14Day) {
-      console.log('  ✅ December 14 weekDay object:', dec14Day);
-    } else {
-      console.log('  ❌ December 14 NOT in weekDays!');
-      console.log('  Closest dates:', days.map(d => d.date));
     }
     
     return days;
@@ -231,49 +155,11 @@ export default function ScheduleHomeScreen() {
     // Normalize date to YYYY-MM-DD format
     const normalizedDate = date.split('T')[0];
     
-    if (normalizedDate === '2025-12-14') {
-      console.log('[ScheduleHomeScreen] getShiftsForDate called for December 14:');
-      console.log(`  Input date: "${date}"`);
-      console.log(`  Normalized date: "${normalizedDate}"`);
-      console.log(`  Total clientShifts: ${clientShifts.length}`);
-      console.log(`  All clientShift dates:`, clientShifts.map(s => `"${s.date}"`));
-    }
-    
-    const shifts = clientShifts.filter(shift => {
+    return clientShifts.filter(shift => {
       // Normalize both dates for comparison
       const shiftDateNormalized = shift.date.split('T')[0];
-      const matches = shiftDateNormalized === normalizedDate;
-      
-      if (normalizedDate === '2025-12-14' || shiftDateNormalized === '2025-12-14') {
-        console.log(`  Comparing: "${shiftDateNormalized}" === "${normalizedDate}" = ${matches ? '✅ MATCH' : '❌ NO MATCH'}`);
-        console.log(`    shift.date: "${shift.date}"`);
-        console.log(`    normalized: "${shiftDateNormalized}"`);
-        console.log(`    search date: "${normalizedDate}"`);
-      }
-      return matches;
+      return shiftDateNormalized === normalizedDate;
     });
-    
-    // Debug: Log December 14 specifically
-    if (normalizedDate === '2025-12-14') {
-      console.log('[ScheduleHomeScreen] December 14, 2025 - getShiftsForDate RESULT:');
-      console.log(`  Date searched: ${normalizedDate}`);
-      console.log(`  Shifts found: ${shifts.length}`);
-      if (shifts.length > 0) {
-        console.log('  ✅✅✅ SHIFTS FOUND FOR DECEMBER 14:', shifts.map(s => ({
-          id: s.id,
-          date: s.date,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          location: s.location,
-        })));
-      } else {
-        console.log('  ❌❌❌ NO SHIFTS FOUND for December 14');
-        console.log('  Available dates:', clientShifts.map(s => `"${s.date}"`));
-        console.log('  This means the date matching failed!');
-      }
-    }
-    
-    return shifts;
   };
 
   const handleDeleteShift = (shiftId: string) => {

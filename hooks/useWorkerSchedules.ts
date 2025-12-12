@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { WorkerSchedule } from '@/types/schedule';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface UseWorkerSchedulesFilters {
   dateFrom?: string; // YYYY-MM-DD format
@@ -30,25 +29,11 @@ export function useWorkerSchedules(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchSchedules = async () => {
+  const fetchSchedules = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Debug: Get current user info
-      const { data: { session } } = await supabase.auth.getSession();
-      const storedWorkerId = await AsyncStorage.getItem('@veralink:workerId');
-      const storedWorkerEmail = await AsyncStorage.getItem('@veralink:workerEmail');
-
-      // Debug: Log filters being used
-      console.log('[useWorkerSchedules] Fetching schedules with filters:');
-      console.log('  Date range:', filters?.dateFrom, 'to', filters?.dateTo);
-      console.log('  Includes Dec 14?', filters?.dateFrom && filters?.dateTo 
-        ? (filters.dateFrom <= '2025-12-14' && filters.dateTo >= '2025-12-14' ? '✅ YES' : '❌ NO')
-        : 'N/A');
-      console.log('  Auth user email:', session?.user?.email || 'NOT LOGGED IN');
-      console.log('  Stored worker ID:', storedWorkerId || 'NOT FOUND');
-      console.log('  Stored worker email:', storedWorkerEmail || 'NOT FOUND');
 
       // Build the query
       let query = supabase
@@ -71,51 +56,8 @@ export function useWorkerSchedules(
       // Execute query
       const { data, error: queryError } = await query;
 
-      // Debug: Log results
-      const dec14Schedule = data?.find((s: any) => s.scheduled_date === '2025-12-14');
-      const allDates = data?.map((s: any) => s.scheduled_date).sort() || [];
-      
-      console.log('[useWorkerSchedules] Query result:');
-      console.log('  Total schedules returned:', data?.length || 0);
-      console.log('  All dates in results:', allDates.join(', ') || 'NONE');
-      console.log('  December 14 schedule:', dec14Schedule ? '✅ FOUND' : '❌ NOT FOUND');
-      
       if (queryError) {
-        console.error('  ❌ Query ERROR:', {
-          message: queryError.message,
-          code: queryError.code,
-          details: queryError.details,
-          hint: queryError.hint,
-        });
-      }
-      
-      if (dec14Schedule) {
-        console.log('  ✅ December 14 schedule details:', {
-          id: dec14Schedule.id,
-          scheduled_date: dec14Schedule.scheduled_date,
-          start_time: dec14Schedule.start_time,
-          end_time: dec14Schedule.end_time,
-          worker_id: dec14Schedule.worker_id,
-        });
-      } else if (data && data.length > 0) {
-        console.warn('  ⚠️ December 14 NOT in results, but other dates returned');
-        console.warn('  ⚠️ Check date range filter - might be querying wrong week');
-      } else if (!queryError) {
-        console.warn('  ⚠️ NO schedules returned (no error)');
-        console.warn('  ⚠️ Possible causes:');
-        console.warn('     - RLS policy blocking (check email match)');
-        console.warn('     - Wrong worker_id in schedule');
-        console.warn('     - Date range doesn\'t include Dec 14');
-        console.warn('     - No schedules exist for this worker');
-      }
-
-      if (queryError) {
-        console.error('[useWorkerSchedules] Query error details:', {
-          message: queryError.message,
-          code: queryError.code,
-          details: queryError.details,
-          hint: queryError.hint,
-        });
+        console.error('[useWorkerSchedules] Query error:', queryError.message);
         throw queryError;
       }
 
@@ -138,12 +80,12 @@ export function useWorkerSchedules(
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filters?.dateFrom, filters?.dateTo, filters?.status]);
 
   // Fetch schedules when component mounts or filters change
   useEffect(() => {
     fetchSchedules();
-  }, [filters?.dateFrom, filters?.dateTo, filters?.status]);
+  }, [fetchSchedules]);
 
   return {
     schedules,
