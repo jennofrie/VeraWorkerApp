@@ -47,25 +47,38 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
 
   const handleLogout = async () => {
     try {
-      // Close drawer first
-      onClose?.();
+      // Close drawer first - this is important for navigation to work
+      if (onClose) {
+        onClose();
+      }
       
-      // Clear all stored data first
-      await AsyncStorage.multiRemove([
+      // Clear all stored data
+      const keysToRemove = [
         WORKER_ID_KEY,
         '@veralink:workerName',
         '@veralink:workerEmail',
         '@veralink:currentShiftId',
-      ]);
+      ];
+      
+      await AsyncStorage.multiRemove(keysToRemove);
       
       // Sign out from Supabase Auth
-      await supabase.auth.signOut();
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        console.error('Supabase sign out error:', signOutError);
+      }
+      
+      // Wait for drawer to fully close before navigating
+      // This ensures the modal doesn't block navigation
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Navigate to login screen - use replace to clear navigation stack
       router.replace('/');
+      
     } catch (error) {
       console.error('Error signing out:', error);
-      // Even if there's an error, clear storage and navigate to login
+      
+      // Even if there's an error, try to clear storage and navigate to login
       try {
         await AsyncStorage.multiRemove([
           WORKER_ID_KEY,
@@ -77,6 +90,10 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
       } catch (clearError) {
         console.error('Error clearing data:', clearError);
       }
+      
+      // Wait for drawer to close
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Always navigate to login, even on error
       router.replace('/');
     }
@@ -168,6 +185,7 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={handleLogout}
+          activeOpacity={0.7}
         >
           <IconSymbol name="power" size={20} color="#FF6B6B" weight="regular" />
           <ThemedText style={styles.logoutText}>Log out</ThemedText>

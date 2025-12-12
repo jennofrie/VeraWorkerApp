@@ -8,11 +8,26 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
+  ActivityIndicator,
+  RefreshControl,
+  PanResponder,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useWorkerSchedules } from '@/hooks/useWorkerSchedules';
+import { WorkerSchedule } from '@/types/schedule';
+import {
+  formatScheduleTime,
+  getDayName,
+  getDayNameForWeekPosition,
+  getMonthName,
+  getDayNumber,
+  formatDateForQuery,
+  getWeekStart,
+  getWeekEnd,
+} from '@/lib/utils/dateFormat';
 
 interface TimeSlot {
   startTime: string;
@@ -29,52 +44,117 @@ interface DaySchedule {
 }
 
 export default function ScheduleScreen() {
-  const [selectedDate, setSelectedDate] = useState(1);
+  const [selectedDate, setSelectedDate] = useState(0); // Start with Monday (index 0)
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
-  const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
-  const [clientName, setClientName] = useState('Bespoke Digital');
+  // Initialize to Monday of current week
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(today);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
   const datePickerRef = useRef<ScrollView>(null);
   const timeSlotsRef = useRef<ScrollView>(null);
 
-  // Generate week data based on currentWeekStart
+  // Calculate week date range for filtering
+  const weekDateRange = useMemo(() => {
+    const weekStart = getWeekStart(currentWeekStart);
+    const weekEnd = getWeekEnd(currentWeekStart);
+    const dateFrom = formatDateForQuery(weekStart);
+    const dateTo = formatDateForQuery(weekEnd);
+    
+    // Debug: Log week range calculation
+    console.log('[ScheduleScreen] Week range calculated:', {
+      currentWeekStart: currentWeekStart.toISOString(),
+      weekStart: weekStart.toISOString(),
+      weekEnd: weekEnd.toISOString(),
+      dateFrom,
+      dateTo,
+      includesDec14: dateFrom <= '2025-12-14' && dateTo >= '2025-12-14',
+    });
+    
+    return {
+      dateFrom,
+      dateTo,
+    };
+  }, [currentWeekStart]);
+
+  // Fetch schedules for the current week
+  const { schedules, isLoading, error, refetch } = useWorkerSchedules({
+    dateFrom: weekDateRange.dateFrom,
+    dateTo: weekDateRange.dateTo,
+  });
+
+  // Map WorkerSchedule data to DaySchedule format
   const scheduleData: DaySchedule[] = useMemo(() => {
-    const weekStart = new Date(currentWeekStart);
-    // Get Monday of the week
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    const monday = new Date(weekStart.setDate(diff));
-    
+    const weekStart = getWeekStart(currentWeekStart);
     const days: DaySchedule[] = [];
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
+    // Debug: Log all schedules received
+    console.log('[ScheduleScreen] All schedules received:', {
+      totalSchedules: schedules.length,
+      schedules: schedules.map(s => ({
+        id: s.id,
+        scheduled_date: s.scheduled_date,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        worker_id: s.worker_id,
+        location_name: s.location_name,
+      })),
+      dec14Schedule: schedules.find(s => s.scheduled_date === '2025-12-14'),
+    });
+    
+    // Generate 7 days (Monday to Sunday)
     for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + i);
+      const dateString = formatDateForQuery(date);
       
-      const dayNumber = date.getDate().toString();
-      const month = monthNames[date.getMonth()];
-      const dayName = dayNames[i];
+      // Find schedules for this date
+      const daySchedules = schedules.filter(
+        (schedule) => schedule.scheduled_date === dateString
+      );
       
-      // Sample data - replace with real API call later
-      // For demo: Tue-Sat have shifts
-      const hasShift = i >= 1 && i <= 5;
+      // Debug: Log if December 14 is found
+      if (dateString === '2025-12-14') {
+        console.log('[ScheduleScreen] December 14, 2025 processing:', {
+          dateString,
+          daySchedulesFound: daySchedules.length,
+          daySchedules: daySchedules.map(s => ({
+            id: s.id,
+            start_time: s.start_time,
+            end_time: s.end_time,
+          })),
+        });
+      }
+      
+      // Map schedules to time slots
+      const timeSlots: TimeSlot[] = daySchedules.map((schedule) => ({
+        startTime: formatScheduleTime(schedule.start_time),
+        endTime: formatScheduleTime(schedule.end_time),
+      }));
+      
+      // Get location name from first schedule (if available)
+      const locationName = daySchedules.length > 0 
+        ? daySchedules[0].location_name 
+        : undefined;
       
       days.push({
-        date: dayNumber,
-        dayName,
-        dayNumber,
-        month,
-        timeSlots: hasShift ? [
-          { startTime: i === 1 ? '04:12am' : '04:00am', endTime: '13:00pm' },
-        ] : [],
-        client: hasShift ? clientName : undefined,
+        date: dateString,
+        dayName: getDayNameForWeekPosition(i), // Use week position (0=Mon, 6=Sun) instead of actual day
+        dayNumber: getDayNumber(dateString),
+        month: getMonthName(dateString),
+        timeSlots,
+        client: locationName || undefined,
       });
     }
     
     return days;
-  }, [currentWeekStart, clientName]);
+  }, [currentWeekStart, schedules]);
 
   // Navigation functions
   const goToPreviousWeek = () => {
@@ -102,6 +182,61 @@ export default function ScheduleScreen() {
     const todayDayOfWeek = day === 0 ? 6 : day - 1; // Convert Sunday (0) to 6, Monday (1) to 0, etc.
     setSelectedDate(todayDayOfWeek);
   };
+
+  // PanResponder for swipe gestures on calendar section
+  const swipeStartX = useRef<number | null>(null);
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt) => {
+        // Capture the starting X position
+        swipeStartX.current = evt.nativeEvent.pageX;
+        return false; // Don't capture immediately
+      },
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to horizontal swipes (more horizontal than vertical)
+        const { dx, dy } = gestureState;
+        // Require significant horizontal movement and minimal vertical movement
+        return Math.abs(dx) > Math.abs(dy) * 2 && Math.abs(dx) > 30;
+      },
+      onPanResponderGrant: () => {
+        // Disable scrolling temporarily when gesture starts
+        if (datePickerRef.current) {
+          datePickerRef.current.setNativeProps({ scrollEnabled: false });
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Re-enable scrolling
+        if (datePickerRef.current) {
+          datePickerRef.current.setNativeProps({ scrollEnabled: true });
+        }
+        
+        const { dx, vx } = gestureState;
+        const SWIPE_THRESHOLD = 50; // Minimum swipe distance in pixels
+        const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum swipe velocity
+
+        // Check if swipe is significant enough (distance or velocity)
+        if (Math.abs(dx) > SWIPE_THRESHOLD || Math.abs(vx) > SWIPE_VELOCITY_THRESHOLD) {
+          if (dx > 0 || vx > 0) {
+            // Swipe right - go to previous week
+            goToPreviousWeek();
+          } else {
+            // Swipe left - go to next week
+            goToNextWeek();
+          }
+        }
+        
+        swipeStartX.current = null;
+      },
+      onPanResponderTerminate: () => {
+        // Re-enable scrolling if gesture is cancelled
+        if (datePickerRef.current) {
+          datePickerRef.current.setNativeProps({ scrollEnabled: true });
+        }
+        swipeStartX.current = null;
+      },
+    })
+  ).current;
 
   // Get current week range for display
   const weekRange = useMemo(() => {
@@ -144,19 +279,83 @@ export default function ScheduleScreen() {
           <View style={styles.headerSpacer} />
         </View>
 
+        {/* Week Navigation - Always visible */}
+        <View style={styles.weekNavigationContainer}>
+          <TouchableOpacity
+            style={styles.weekNavButton}
+            onPress={goToPreviousWeek}
+            activeOpacity={0.7}
+          >
+            <IconSymbol name="chevron.left" size={24} color="#FFFFFF" weight="regular" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.weekRangeButton}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
+          >
+            <ThemedText style={styles.weekRangeText}>
+              {weekRange}
+            </ThemedText>
+            <ThemedText style={styles.weekRangeSubtext}>
+              Tap to jump to date
+            </ThemedText>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.weekNavButton}
+            onPress={goToNextWeek}
+            activeOpacity={0.7}
+          >
+            <IconSymbol name="chevron.right" size={24} color="#FFFFFF" weight="regular" />
+          </TouchableOpacity>
+        </View>
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={refetch} />
+          }
         >
-          {/* Date Picker */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.datePickerContainer}
-            contentContainerStyle={styles.datePickerContent}
-          >
-            {scheduleData.map((day, index) => (
+          {/* Loading State */}
+          {isLoading && schedules.length === 0 && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#00D4AA" />
+              <ThemedText style={styles.loadingText}>Loading schedules...</ThemedText>
+            </View>
+          )}
+
+          {/* Error State */}
+          {error && !isLoading && (
+            <View style={styles.errorContainer}>
+              <IconSymbol name="exclamationmark.triangle.fill" size={48} color="#FF6B6B" />
+              <ThemedText style={styles.errorText}>{error}</ThemedText>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={refetch}
+              >
+                <ThemedText style={styles.retryButtonText}>Retry</ThemedText>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Date Picker - Swipeable for week navigation */}
+          {!error && (
+            <View
+              {...panResponder.panHandlers}
+              style={styles.datePickerWrapper}
+            >
+              <ScrollView
+                ref={datePickerRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.datePickerContainer}
+                contentContainerStyle={styles.datePickerContent}
+                scrollEnabled={true}
+              >
+              {scheduleData.map((day, index) => (
               <TouchableOpacity
                 key={index}
                 style={[
@@ -193,11 +392,13 @@ export default function ScheduleScreen() {
                   <View style={styles.dateUnderline} />
                 )}
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+              ))}
+              </ScrollView>
+            </View>
+          )}
 
-          {/* Client Name */}
-          {scheduleData[selectedDate]?.client && (
+          {/* Client Name / Location */}
+          {!error && scheduleData[selectedDate]?.client && (
             <View style={styles.clientContainer}>
               <ThemedText style={styles.clientText}>
                 {scheduleData[selectedDate].client}
@@ -206,7 +407,8 @@ export default function ScheduleScreen() {
           )}
 
           {/* Time Slots - Horizontal Layout */}
-          <ScrollView
+          {!error && (
+            <ScrollView
             ref={timeSlotsRef}
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -242,8 +444,22 @@ export default function ScheduleScreen() {
                   </View>
                 )}
               </View>
-            ))}
-          </ScrollView>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && !error && schedules.length === 0 && (
+            <View style={styles.emptyStateContainer}>
+              <IconSymbol name="calendar" size={64} color="rgba(255, 255, 255, 0.3)" />
+              <ThemedText style={styles.emptyStateText}>
+                No schedules for this week
+              </ThemedText>
+              <ThemedText style={styles.emptyStateSubtext}>
+                Your upcoming schedules will appear here
+              </ThemedText>
+            </View>
+          )}
         </ScrollView>
       </View>
 
@@ -342,40 +558,16 @@ export default function ScheduleScreen() {
                 Edit Client Name
               </ThemedText>
               
-              <View style={styles.inputContainer}>
-                <ThemedText style={styles.inputLabel}>Client Name</ThemedText>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter client name"
-                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                  value={clientName}
-                  onChangeText={setClientName}
-                  autoCapitalize="words"
-                  autoFocus={Platform.OS === 'android'}
-                />
-              </View>
+              <ThemedText style={styles.modalInfoText}>
+                Client names are displayed from your schedule location information.
+              </ThemedText>
 
-              <View style={styles.modalButtonContainer}>
-                <TouchableOpacity
-                  style={styles.modalCancelButton}
-                  onPress={() => setShowClientModal(false)}
-                >
-                  <ThemedText style={styles.modalCancelButtonText}>Cancel</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalSaveButton}
-                  onPress={() => setShowClientModal(false)}
-                >
-                  <LinearGradient
-                    colors={['#00D4AA', '#00A8CC']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.modalSaveButtonGradient}
-                  >
-                    <ThemedText style={styles.modalSaveButtonText}>Save</ThemedText>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowClientModal(false)}
+              >
+                <ThemedText style={styles.closeButtonText}>Close</ThemedText>
+              </TouchableOpacity>
             </BlurView>
           </KeyboardAvoidingView>
         </LinearGradient>
@@ -421,9 +613,53 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
-  datePickerContainer: {
+  weekNavigationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
+  },
+  weekNavButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  weekRangeButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  weekRangeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  weekRangeSubtext: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  datePickerWrapper: {
     marginHorizontal: 20,
     marginBottom: 20,
+  },
+  datePickerContainer: {
+    width: '100%',
   },
   datePickerContent: {
     paddingRight: 20,
@@ -685,6 +921,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#FF6B6B',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 24,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.4)',
+  },
+  retryButtonText: {
+    fontSize: 14,
+    color: '#FF6B6B',
+    fontWeight: '600',
+  },
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
+  modalInfoText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
   },
 });
 

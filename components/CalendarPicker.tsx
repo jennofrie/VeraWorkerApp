@@ -78,22 +78,36 @@ export function CalendarPicker({ visible, onClose, selectedDate, onDateSelect }:
     onClose();
   };
 
-  // Generate calendars for multiple years (2025-2028)
+  // Generate calendars for multiple years (current year to 2028)
+  // Only show months from current month onwards (exclude past months)
   const generateYearCalendars = () => {
-    const years = [2025, 2026, 2027, 2028];
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-11 (0 = January)
+    const endYear = 2028;
+    
     const calendars: { year: number; months: { month: number; monthName: string; days: (number | null)[] }[] }[] = [];
     
-    years.forEach(year => {
+    // Generate years from current year to end year
+    for (let year = currentYear; year <= endYear; year++) {
       const months: { month: number; monthName: string; days: (number | null)[] }[] = [];
-      for (let month = 0; month < 12; month++) {
+      
+      // For current year, start from current month. For future years, start from January
+      const startMonth = year === currentYear ? currentMonth : 0;
+      
+      for (let month = startMonth; month < 12; month++) {
         months.push({
           month,
           monthName: monthNames[month],
           days: generateCalendar(month, year),
         });
       }
-      calendars.push({ year, months });
-    });
+      
+      // Only add year if it has months to display
+      if (months.length > 0) {
+        calendars.push({ year, months });
+      }
+    }
     
     return calendars;
   };
