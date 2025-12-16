@@ -57,26 +57,36 @@ export function useWorkerSchedules(
       const { data, error: queryError } = await query;
 
       if (queryError) {
-        console.error('[useWorkerSchedules] Query error:', queryError.message);
+        if (__DEV__) {
+          console.error('[useWorkerSchedules] Query error:', queryError.message);
+        }
         throw queryError;
       }
 
       // Set schedules data
       setSchedules((data as WorkerSchedule[]) || []);
     } catch (err: any) {
-      console.error('Error fetching worker schedules:', err);
+      if (__DEV__) {
+        console.error('Error fetching worker schedules:', err);
+      }
       
       // Provide user-friendly error messages
       let errorMessage = 'Failed to load schedules. Please try again.';
       
-      if (err?.code === 'PGRST301' || err?.message?.includes('permission denied')) {
+      // Handle AbortError (timeout)
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted') || err?.message?.includes('AbortError')) {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+      } else if (err?.code === 'PGRST301' || err?.message?.includes('permission denied')) {
         errorMessage = 'Permission denied. Please ensure you are logged in.';
+      } else if (err?.message?.includes('network') || err?.message?.includes('fetch failed')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
       } else if (err?.message) {
         errorMessage = err.message;
       }
       
       setError(errorMessage);
-      setSchedules([]);
+      // Don't clear schedules on error - keep existing data if available
+      // setSchedules([]);
     } finally {
       setIsLoading(false);
     }

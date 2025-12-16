@@ -26,7 +26,9 @@ export default function AboutScreen() {
         if (storedName) setWorkerName(storedName);
         if (storedEmail) setWorkerEmail(storedEmail);
       } catch (error) {
-        console.error('Error loading worker info:', error);
+        if (__DEV__) {
+          console.error('Error loading worker info:', error);
+        }
       }
     };
     loadWorkerInfo();
@@ -39,10 +41,14 @@ export default function AboutScreen() {
       if (supported) {
         await Linking.openURL(url);
       } else {
-        console.error("Don't know how to open URI: " + url);
+        if (__DEV__) {
+          console.error("Don't know how to open URI: " + url);
+        }
       }
     } catch (error) {
-      console.error('Error opening URL:', error);
+      if (__DEV__) {
+        console.error('Error opening URL:', error);
+      }
     }
   };
 

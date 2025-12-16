@@ -257,15 +257,15 @@ export default function ScheduleScreen() {
             <View
               style={styles.datePickerWrapper}
             >
-              <ScrollView
+          <ScrollView
                 ref={datePickerRef}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.datePickerContainer}
-                contentContainerStyle={styles.datePickerContent}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.datePickerContainer}
+            contentContainerStyle={styles.datePickerContent}
                 scrollEnabled={true}
-              >
-              {scheduleData.map((day, index) => (
+          >
+            {scheduleData.map((day, index) => (
               <TouchableOpacity
                 key={index}
                 style={[
@@ -302,8 +302,8 @@ export default function ScheduleScreen() {
                   <View style={styles.dateUnderline} />
                 )}
               </TouchableOpacity>
-              ))}
-              </ScrollView>
+            ))}
+          </ScrollView>
             </View>
           )}
 
@@ -318,7 +318,7 @@ export default function ScheduleScreen() {
 
           {/* Time Slots - Horizontal Layout */}
           {!error && (
-            <ScrollView
+          <ScrollView
             ref={timeSlotsRef}
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -354,8 +354,8 @@ export default function ScheduleScreen() {
                   </View>
                 )}
               </View>
-              ))}
-            </ScrollView>
+            ))}
+          </ScrollView>
           )}
 
           {/* Empty State */}
@@ -472,12 +472,12 @@ export default function ScheduleScreen() {
                 Client names are displayed from your schedule location information.
               </ThemedText>
 
-              <TouchableOpacity
+                <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => setShowClientModal(false)}
-              >
+                  onPress={() => setShowClientModal(false)}
+                >
                 <ThemedText style={styles.closeButtonText}>Close</ThemedText>
-              </TouchableOpacity>
+                </TouchableOpacity>
             </BlurView>
           </KeyboardAvoidingView>
         </LinearGradient>

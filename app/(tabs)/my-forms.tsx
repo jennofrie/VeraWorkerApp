@@ -25,7 +25,9 @@ export default function MyFormsScreen() {
         if (storedName) setWorkerName(storedName);
         if (storedEmail) setWorkerEmail(storedEmail);
       } catch (error) {
-        console.error('Error loading worker info:', error);
+        if (__DEV__) {
+          console.error('Error loading worker info:', error);
+        }
       }
     };
     loadWorkerInfo();

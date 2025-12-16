@@ -118,7 +118,9 @@ export default function TimesheetScreen() {
         if (storedName) setWorkerName(storedName);
         if (storedEmail) setWorkerEmail(storedEmail);
       } catch (error) {
-        console.error('Error loading worker info:', error);
+        if (__DEV__) {
+          console.error('Error loading worker info:', error);
+        }
       }
     };
     loadWorkerInfo();
@@ -194,7 +196,9 @@ export default function TimesheetScreen() {
 
       // Validate dates - skip if invalid
       if (isNaN(clockInDateObj.getTime()) || isNaN(clockOutDateObj.getTime())) {
-        console.warn('[Timesheet] Invalid date detected, skipping entry:', timesheet.id);
+        if (__DEV__) {
+          console.warn('[Timesheet] Invalid date detected, skipping entry:', timesheet.id);
+        }
         return;
       }
 
@@ -214,7 +218,9 @@ export default function TimesheetScreen() {
 
       // Validate month range (should be 1-12)
       if (clockInMonth < 1 || clockInMonth > 12) {
-        console.warn('[Timesheet] Invalid month detected, skipping entry:', timesheet.id, 'month:', clockInMonth);
+        if (__DEV__) {
+          console.warn('[Timesheet] Invalid month detected, skipping entry:', timesheet.id, 'month:', clockInMonth);
+        }
         return;
       }
 
@@ -245,7 +251,9 @@ export default function TimesheetScreen() {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthIndex = clockInMonth - 1; // clockInMonth is 1-12, array is 0-indexed
       if (monthIndex < 0 || monthIndex >= monthNames.length) {
-        console.warn('[Timesheet] Invalid month index, using fallback:', monthIndex);
+        if (__DEV__) {
+          console.warn('[Timesheet] Invalid month index, using fallback:', monthIndex);
+        }
         return;
       }
       const monthName = monthNames[monthIndex];
@@ -290,7 +298,7 @@ export default function TimesheetScreen() {
     const weekGroups: WeekGroup[] = Array.from(weekMap.entries())
       .map(([weekKey, entries]) => {
       // Calculate total hours for this week
-      let totalMinutes = 0;
+    let totalMinutes = 0;
       entries.forEach((entry) => {
         // Parse time strings back to minutes
         const startMatch = entry.startTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
@@ -314,29 +322,35 @@ export default function TimesheetScreen() {
           const endTotalMinutes = endHours * 60 + endMinutes;
           
           let diff = endTotalMinutes - startTotalMinutes;
-          if (diff < 0) diff += 24 * 60; // Handle overnight shifts
-          totalMinutes += diff;
-        }
-      });
-
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
+        if (diff < 0) diff += 24 * 60; // Handle overnight shifts
+        totalMinutes += diff;
+      }
+    });
+    
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
       const totalHours = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
       // Get week range string using the helper function for consistency
       const weekKeyParts = weekKey.split('-');
       if (weekKeyParts.length !== 3) {
-        console.warn('[Timesheet] Invalid weekKey format, skipping:', weekKey);
+        if (__DEV__) {
+          console.warn('[Timesheet] Invalid weekKey format, skipping:', weekKey);
+        }
         return { weekRange: '', totalHours: '00:00', entries: [] };
       }
       const [weekYear, weekMonth, weekDay] = weekKeyParts.map(Number);
       if (isNaN(weekYear) || isNaN(weekMonth) || isNaN(weekDay)) {
-        console.warn('[Timesheet] Invalid weekKey values, skipping:', weekKey);
+        if (__DEV__) {
+          console.warn('[Timesheet] Invalid weekKey values, skipping:', weekKey);
+        }
         return { weekRange: '', totalHours: '00:00', entries: [] };
       }
       const weekStartDate = new Date(weekYear, weekMonth - 1, weekDay, 0, 0, 0);
       if (isNaN(weekStartDate.getTime())) {
-        console.warn('[Timesheet] Invalid weekStartDate, skipping:', weekKey);
+        if (__DEV__) {
+          console.warn('[Timesheet] Invalid weekStartDate, skipping:', weekKey);
+        }
         return { weekRange: '', totalHours: '00:00', entries: [] };
       }
       const weekRange = createWeekRangeString(weekStartDate);
@@ -382,13 +396,17 @@ export default function TimesheetScreen() {
     // Convert "03:00" to "3h 0m" format
     const totalHoursParts = currentWeek.totalHours.split(':');
     if (totalHoursParts.length !== 2) {
-      console.warn('[Timesheet] Invalid totalHours format:', currentWeek.totalHours);
+      if (__DEV__) {
+        console.warn('[Timesheet] Invalid totalHours format:', currentWeek.totalHours);
+      }
       return '0h 0m';
     }
     const hours = Number(totalHoursParts[0]);
     const minutes = Number(totalHoursParts[1]);
     if (isNaN(hours) || isNaN(minutes)) {
-      console.warn('[Timesheet] Invalid totalHours values:', currentWeek.totalHours);
+      if (__DEV__) {
+        console.warn('[Timesheet] Invalid totalHours values:', currentWeek.totalHours);
+      }
       return '0h 0m';
     }
     return `${hours}h ${minutes}m`;
@@ -441,22 +459,22 @@ export default function TimesheetScreen() {
 
         {/* Week Navigator */}
         <View style={styles.weekNavigator}>
-          <TouchableOpacity
+        <TouchableOpacity
             style={styles.navArrow}
             onPress={goToPreviousWeek}
-            activeOpacity={0.7}
-          >
+          activeOpacity={0.7}
+        >
             <IconSymbol name="chevron.left" size={24} color="#1F1D2B" />
           </TouchableOpacity>
           
           <View style={styles.weekNavigatorCenter}>
             <ThemedText style={styles.weekNavigatorDate}>
-              {getCurrentWeekRange()}
-            </ThemedText>
+                  {getCurrentWeekRange()}
+                </ThemedText>
             <ThemedText style={styles.weekNavigatorHours}>
               {currentWeekTotal}
             </ThemedText>
-          </View>
+              </View>
           
           <TouchableOpacity
             style={styles.navArrow}
@@ -464,7 +482,7 @@ export default function TimesheetScreen() {
             activeOpacity={0.7}
           >
             <IconSymbol name="chevron.right" size={24} color="#1F1D2B" />
-          </TouchableOpacity>
+        </TouchableOpacity>
         </View>
 
         {/* Scrollable List */}
@@ -490,7 +508,7 @@ export default function TimesheetScreen() {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#5B9BD5" />
               <ThemedText style={styles.loadingText}>Loading timesheet...</ThemedText>
-            </View>
+              </View>
           )}
 
           {/* Error State */}
@@ -540,25 +558,25 @@ export default function TimesheetScreen() {
               <View style={styles.weekGroup}>
                 {entriesToShow.map((entry) => (
                     <View
-                      key={entry.id}
-                      style={styles.entryCard}
+                  key={entry.id}
+                  style={styles.entryCard}
                     >
-                      <View style={styles.entryContent}>
-                        {/* Avatar */}
-                        <View style={[styles.avatar, { backgroundColor: entry.avatarColor || '#5B9BD5' }]}>
-                          <View style={styles.avatarIcon}>
-                            <View style={styles.avatarHead} />
-                            <View style={styles.avatarBody} />
-                          </View>
+                    <View style={styles.entryContent}>
+                      {/* Avatar */}
+                      <View style={[styles.avatar, { backgroundColor: entry.avatarColor || '#5B9BD5' }]}>
+                        <View style={styles.avatarIcon}>
+                          <View style={styles.avatarHead} />
+                          <View style={styles.avatarBody} />
                         </View>
+                      </View>
 
-                        {/* Entry Details */}
-                        <View style={styles.entryDetails}>
+                      {/* Entry Details */}
+                      <View style={styles.entryDetails}>
                           {/* Title Row: Client Name + Badge (flexbox layout) */}
                           <View style={styles.titleRow}>
                             <ThemedText style={styles.clientName} numberOfLines={1}>
-                              {entry.client}
-                            </ThemedText>
+                          {entry.client}
+                        </ThemedText>
                             {entry.isAdminAdded && (
                               <View style={styles.adminBadge}>
                                 <ThemedText style={styles.adminBadgeText}>Admin Added</ThemedText>
@@ -567,24 +585,24 @@ export default function TimesheetScreen() {
                           </View>
                           
                           {/* Time Range - Subtitle */}
-                          <View style={styles.timeRow}>
+                        <View style={styles.timeRow}>
                             <IconSymbol name="clock.fill" size={14} color="#666" />
-                            <ThemedText style={styles.timeText}>
-                              {entry.startTime} - {entry.endTime}
-                            </ThemedText>
-                          </View>
+                          <ThemedText style={styles.timeText}>
+                            {entry.startTime} - {entry.endTime}
+                          </ThemedText>
+                        </View>
 
                           {/* Date */}
-                          <View style={styles.dateRow}>
+                        <View style={styles.dateRow}>
                             <IconSymbol name="calendar" size={14} color="#999" />
-                            <ThemedText style={styles.dateText}>
-                              {entry.date}
-                            </ThemedText>
-                          </View>
+                          <ThemedText style={styles.dateText}>
+                            {entry.date}
+                          </ThemedText>
                         </View>
                       </View>
                     </View>
-                  ))}
+            </View>
+          ))}
               </View>
             ) : null;
           })()}

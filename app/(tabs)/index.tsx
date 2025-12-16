@@ -90,7 +90,9 @@ export default function ScheduleHomeScreen() {
         location: schedule.location_address || schedule.location_name || 'Location TBD',
         latitude: undefined,
         longitude: undefined,
-        status: schedule.status === 'cancelled' ? 'COMPLETED' : 'BOOKED' as 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED',
+        status: (schedule.status === 'COMPLETED' ? 'COMPLETED' : 
+                 schedule.status === 'STARTED' ? 'IN_PROGRESS' : 
+                 'BOOKED') as 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED',
       };
     });
   }, [schedules]);
@@ -112,7 +114,9 @@ export default function ScheduleHomeScreen() {
         if (storedName) setWorkerName(storedName);
         if (storedEmail) setWorkerEmail(storedEmail);
       } catch (error) {
-        console.error('Error loading worker info:', error);
+        if (__DEV__) {
+          console.error('Error loading worker info:', error);
+        }
       }
     };
     loadWorkerInfo();
@@ -183,6 +187,7 @@ export default function ScheduleHomeScreen() {
     router.push({
       pathname: '/(tabs)/client-detail',
       params: {
+        scheduleId: shift.id, // CRITICAL: Pass schedule ID for updates
         clientId: shift.id,
         clientName: shift.clientName,
         serviceType: shift.serviceType,
@@ -284,7 +289,29 @@ export default function ScheduleHomeScreen() {
                             {shift.startTime} - {shift.endTime}
                           </ThemedText>
                           <View style={styles.shiftActions}>
-                            <ThemedText style={styles.shiftStatus}>{shift.status}</ThemedText>
+                            <View style={[
+                              styles.statusBadge,
+                              shift.status === 'BOOKED' && styles.statusBadgeBooked,
+                              shift.status === 'IN_PROGRESS' && styles.statusBadgeStarted,
+                              shift.status === 'COMPLETED' && styles.statusBadgeCompleted,
+                            ]}>
+                              {shift.status === 'COMPLETED' && (
+                                <View style={{ marginRight: 4 }}>
+                                  <IconSymbol name="checkmark.circle.fill" size={12} color="#FFFFFF" weight="regular" />
+                                </View>
+                              )}
+                              {shift.status === 'IN_PROGRESS' && (
+                                <View style={styles.pulseDot} />
+                              )}
+                              <ThemedText style={[
+                                styles.statusBadgeText,
+                                shift.status === 'BOOKED' && styles.statusBadgeTextBooked,
+                                shift.status === 'IN_PROGRESS' && styles.statusBadgeTextStarted,
+                                shift.status === 'COMPLETED' && styles.statusBadgeTextCompleted,
+                              ]}>
+                                {shift.status === 'IN_PROGRESS' ? 'STARTED' : shift.status}
+                              </ThemedText>
+                            </View>
                             <TouchableOpacity
                               style={styles.deleteButton}
                               onPress={(e) => {
@@ -469,14 +496,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  shiftStatus: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#22B07D',
-    backgroundColor: '#E6F9F4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    minWidth: 70,
+    justifyContent: 'center',
+  },
+  statusBadgeBooked: {
+    backgroundColor: '#E3F2FD',
+  },
+  statusBadgeStarted: {
+    backgroundColor: '#E8F5E9',
+  },
+  statusBadgeCompleted: {
+    backgroundColor: '#4CAF50',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  statusBadgeTextBooked: {
+    color: '#1976D2',
+  },
+  statusBadgeTextStarted: {
+    color: '#2E7D32',
+  },
+  statusBadgeTextCompleted: {
+    color: '#FFFFFF',
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2E7D32',
+    marginRight: 6,
+    // Pulse animation would be added with react-native-reanimated if needed
   },
   deleteButton: {
     padding: 4,

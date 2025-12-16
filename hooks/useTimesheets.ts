@@ -91,7 +91,9 @@ export function useTimesheets(
       const { data, error: queryError } = await query;
 
       if (queryError) {
-        console.error('[useTimesheets] Query error:', queryError.message);
+        if (__DEV__) {
+          console.error('[useTimesheets] Query error:', queryError.message);
+        }
         throw queryError;
       }
 
@@ -101,7 +103,9 @@ export function useTimesheets(
       // Clear error on success
       setError(null);
     } catch (err: any) {
-      console.error('Error fetching timesheets:', err);
+      if (__DEV__) {
+        console.error('Error fetching timesheets:', err);
+      }
       
       // Only set error on initial load, not during refresh (to prevent UI jumps)
       if (!isRefresh) {

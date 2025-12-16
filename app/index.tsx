@@ -39,46 +39,84 @@ export default function LoginScreen() {
 
   const checkAuth = async () => {
     try {
-      // First check Supabase session
-      const { supabase } = await import('@/lib/supabase');
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // If no session, check AsyncStorage as fallback
-      if (!session) {
-        const storedWorkerId = await AsyncStorage.getItem(WORKER_ID_KEY);
-        const storedWorkerName = await AsyncStorage.getItem('@veralink:workerName');
-        const storedWorkerEmail = await AsyncStorage.getItem('@veralink:workerEmail');
+      // OPTIMIZATION: Check AsyncStorage first (fast, local) before network call
+      // This allows UI to show immediately if user has no stored credentials
+      const storageKeys = [WORKER_ID_KEY, '@veralink:workerName', '@veralink:workerEmail'];
+      const storedData = await AsyncStorage.multiGet(storageKeys);
+      const storedWorkerId = storedData[0][1];
+      const storedWorkerName = storedData[1][1];
+      const storedWorkerEmail = storedData[2][1];
 
-        if (storedWorkerId && storedWorkerName && storedWorkerEmail) {
-          if (isValidUUID(storedWorkerId)) {
-            // User has stored credentials but no session - clear and show login
-            await AsyncStorage.multiRemove([WORKER_ID_KEY, '@veralink:workerName', '@veralink:workerEmail']);
-          }
+      // If no stored credentials, show login immediately (no network call needed)
+      if (!storedWorkerId || !storedWorkerName || !storedWorkerEmail || !isValidUUID(storedWorkerId)) {
+        setIsChecking(false);
+        return;
+      }
+
+      // User has stored credentials, now check Supabase session (with timeout)
+      const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+      
+      // Check if Supabase is properly configured
+      if (!isSupabaseConfigured()) {
+        if (__DEV__) {
+          console.warn('Supabase is not configured. Skipping auth check.');
         }
-        // No valid session or credentials, show login
+        // Clear invalid stored data
+        await AsyncStorage.multiRemove(storageKeys);
         setIsChecking(false);
         return;
       }
       
-      // Session exists, verify worker data
-      const storedWorkerId = await AsyncStorage.getItem(WORKER_ID_KEY);
-      const storedWorkerName = await AsyncStorage.getItem('@veralink:workerName');
-      const storedWorkerEmail = await AsyncStorage.getItem('@veralink:workerEmail');
-
+      // OPTIMIZATION: Add timeout to session check (5 seconds max)
+      // This prevents long waits if network is slow
+      let session = null;
+      try {
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        );
+        
+        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        
+        if (error) {
+          if (__DEV__) {
+            console.warn('Error getting session:', error.message);
+          }
+        } else {
+          session = data?.session || null;
+        }
+      } catch (sessionError: any) {
+        // Handle network timeouts and other errors gracefully
+        if (__DEV__) {
+          console.warn('Session check failed (timeout or network issue):', sessionError.message);
+        }
+        // Continue without session - user will need to login
+      }
+      
+      // If no session, clear stored data and show login
+      if (!session) {
+        await AsyncStorage.multiRemove(storageKeys);
+        setIsChecking(false);
+        return;
+      }
+      
+      // Session exists and we have stored worker data - user is logged in
       if (storedWorkerId && storedWorkerName && storedWorkerEmail && isValidUUID(storedWorkerId)) {
         // User is already logged in, navigate to tabs
         router.replace('/(tabs)');
         return;
       } else {
         // Session exists but no worker data - clear and show login
-        await AsyncStorage.multiRemove([WORKER_ID_KEY, '@veralink:workerName', '@veralink:workerEmail']);
+        await AsyncStorage.multiRemove(storageKeys);
         await supabase.auth.signOut();
       }
       
       // No valid credentials, show login
       setIsChecking(false);
     } catch (error) {
-      console.error('Error checking auth:', error);
+      if (__DEV__) {
+        console.error('Error checking auth:', error);
+      }
       setIsChecking(false);
     }
   };
@@ -140,7 +178,9 @@ export default function LoginScreen() {
         .single();
 
       if (workerError) {
-        console.error('Worker lookup error:', workerError);
+        if (__DEV__) {
+          console.error('Worker lookup error:', workerError);
+        }
         
         // Sign out if worker lookup fails
         await supabase.auth.signOut();
@@ -174,14 +214,18 @@ export default function LoginScreen() {
       // Navigate immediately after storing data
       router.replace('/(tabs)');
     } catch (err: any) {
-      console.error('Login error:', err);
+      if (__DEV__) {
+        console.error('Login error:', err);
+      }
       setError(err.message || 'Login failed. Please try again.');
       // Try to sign out on error
       try {
         const { supabase } = await import('@/lib/supabase');
         await supabase.auth.signOut();
       } catch (signOutErr) {
-        console.error('Error signing out after login error:', signOutErr);
+        if (__DEV__) {
+          console.error('Error signing out after login error:', signOutErr);
+        }
       }
     } finally {
       setIsLoading(false);

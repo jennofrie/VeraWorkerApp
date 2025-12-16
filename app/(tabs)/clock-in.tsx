@@ -125,7 +125,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
               setIsClockedIn(false);
             }
           } catch (dbError) {
-            console.log('Could not verify shift in database:', dbError);
+            if (__DEV__) {
+              console.log('Could not verify shift in database:', dbError);
+            }
             await AsyncStorage.removeItem(STORAGE_KEY);
             setCurrentShiftId(null);
             setIsClockedIn(false);
@@ -134,7 +136,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
           await AsyncStorage.removeItem(STORAGE_KEY);
         }
       } catch (e) {
-        console.log('Could not check shift:', e);
+        if (__DEV__) {
+          console.log('Could not check shift:', e);
+        }
       }
     };
 
@@ -176,19 +180,25 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
 
   const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
     if (Platform.OS === 'web') {
-      console.log('Location service not available on web platform');
+      if (__DEV__) {
+        console.log('Location service not available on web platform');
+      }
       return null;
     }
 
     try {
       if (!Location || typeof Location.getCurrentPositionAsync !== 'function') {
-        console.log('Location service not available on this device');
+        if (__DEV__) {
+          console.log('Location service not available on this device');
+        }
         return null;
       }
 
       const enabled = await Location.hasServicesEnabledAsync();
       if (!enabled) {
-        console.log('Location services are disabled on this device');
+        if (__DEV__) {
+          console.log('Location services are disabled on this device');
+        }
         return null;
       }
 
@@ -196,14 +206,18 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
       try {
         permissionStatus = await Location.getForegroundPermissionsAsync();
       } catch (permError) {
-        console.error('Error checking location permissions:', permError);
+        if (__DEV__) {
+          console.error('Error checking location permissions:', permError);
+        }
         return null;
       }
 
       let { status } = permissionStatus;
       
       if (status === 'denied') {
-        console.log('Location permission permanently denied');
+        if (__DEV__) {
+          console.log('Location permission permanently denied');
+        }
         return null;
       }
 
@@ -213,11 +227,15 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
           status = permissionResponse.status;
           
           if (status !== 'granted') {
-            console.log('Location permission denied by user');
+            if (__DEV__) {
+              console.log('Location permission denied by user');
+            }
             return null;
           }
         } catch (requestError) {
-          console.error('Error requesting location permission:', requestError);
+          if (__DEV__) {
+            console.error('Error requesting location permission:', requestError);
+          }
           return null;
         }
       }
@@ -234,7 +252,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
         ]) as Location.LocationObject;
 
         if (!location || !location.coords) {
-          console.log('Invalid location data received');
+          if (__DEV__) {
+            console.log('Invalid location data received');
+          }
           return null;
         }
 
@@ -250,7 +270,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
           longitude < -180 ||
           longitude > 180
         ) {
-          console.log('Invalid coordinates received:', { latitude, longitude });
+          if (__DEV__) {
+            console.log('Invalid coordinates received:', { latitude, longitude });
+          }
           return null;
         }
 
@@ -259,15 +281,19 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
           lng: longitude,
         };
       } catch (locationError: any) {
-        if (locationError.message === 'Location request timeout') {
-          console.log('Location request timed out after 8 seconds');
-        } else {
-          console.error('Error getting location:', locationError);
+        if (__DEV__) {
+          if (locationError.message === 'Location request timeout') {
+            console.log('Location request timed out after 8 seconds');
+          } else {
+            console.error('Error getting location:', locationError);
+          }
         }
         return null;
       }
     } catch (error: any) {
-      console.error('Unexpected error in getCurrentLocation:', error);
+      if (__DEV__) {
+        console.error('Unexpected error in getCurrentLocation:', error);
+      }
       return null;
     }
   };
@@ -330,7 +356,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
       const { data: workerData, error: workerError } = workerResult;
 
       if (workerError || !workerData) {
-        console.error('Worker verification error:', workerError);
+        if (__DEV__) {
+          console.error('Worker verification error:', workerError);
+        }
         
         if (workerError?.code === 'PGRST301' || workerError?.message?.includes('permission denied') || workerError?.message?.includes('403')) {
           Alert.alert(
@@ -357,11 +385,15 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
       }
 
       if (workerData.id !== workerId) {
-        console.warn('Worker ID mismatch - updating stored ID');
+        if (__DEV__) {
+          console.warn('Worker ID mismatch - updating stored ID');
+        }
         await AsyncStorage.setItem(WORKER_ID_KEY, workerData.id);
       }
     } catch (verifyError: any) {
-      console.error('Error verifying worker:', verifyError);
+      if (__DEV__) {
+        console.error('Error verifying worker:', verifyError);
+      }
       const errorMessage = isNetworkError(verifyError)
         ? 'Network connection issue. Please check your internet and try again.'
         : 'Failed to verify your worker account. Please try again.';
@@ -392,7 +424,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
             .single();
 
           if (result.error && (result.error.message?.includes('clock_in_lat') || result.error.message?.includes('clock_in_lng') || result.error.code === '42703')) {
-            console.log('Location columns not found, retrying without location');
+            if (__DEV__) {
+              console.log('Location columns not found, retrying without location');
+            }
             shiftData = {
               worker_id: workerId,
               clock_in_time: new Date().toISOString(),
@@ -417,12 +451,14 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
       const { data, error } = shiftResult;
 
       if (error) {
-        console.error('Supabase error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
+        if (__DEV__) {
+          console.error('Supabase error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+          });
+        }
         
         let errorMessage: string;
         if (error.code === '23503' || error.message?.includes('foreign key')) {
@@ -448,7 +484,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
         onClockIn?.();
       }
     } catch (error: any) {
-      console.error('Error clocking in:', error);
+      if (__DEV__) {
+        console.error('Error clocking in:', error);
+      }
       const errorMessage = isNetworkError(error)
         ? getNetworkErrorMessage(error)
         : error.details || error.hint || error.message || 'Failed to clock in. Please try again.';
@@ -506,7 +544,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
             .eq('id', currentShiftId);
 
           if (result.error && (result.error.message?.includes('clock_out_lat') || result.error.message?.includes('clock_out_lng') || result.error.message?.includes('shift_duration'))) {
-            console.log('Some columns not found, retrying with minimal data');
+            if (__DEV__) {
+              console.log('Some columns not found, retrying with minimal data');
+            }
             updateData = {
               clock_out_time: now.toISOString(),
             };
@@ -535,12 +575,14 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
       const { error } = updateResult;
 
       if (error) {
-        console.error('Supabase error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
+        if (__DEV__) {
+          console.error('Supabase error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+          });
+        }
         
         let errorMessage: string;
         if (isNetworkError(error)) {
@@ -559,7 +601,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
       try {
         await supabase.auth.signOut();
       } catch (signOutError) {
-        console.error('Error signing out from Supabase:', signOutError);
+        if (__DEV__) {
+          console.error('Error signing out from Supabase:', signOutError);
+        }
       }
 
       await AsyncStorage.multiRemove([
@@ -588,7 +632,9 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
         ]
       );
     } catch (error: any) {
-      console.error('Error clocking out:', error);
+      if (__DEV__) {
+        console.error('Error clocking out:', error);
+      }
       const errorMessage = isNetworkError(error)
         ? getNetworkErrorMessage(error)
         : error.details || error.hint || error.message || 'Failed to clock out. Please try again.';

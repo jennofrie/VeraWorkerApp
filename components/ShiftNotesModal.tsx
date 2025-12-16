@@ -7,18 +7,9 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  Dimensions,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { ThemedText } from './themed-text';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 
 interface ShiftNotesModalProps {
   visible: boolean;
@@ -29,23 +20,14 @@ interface ShiftNotesModalProps {
 export function ShiftNotesModal({ visible, onClose, onSave }: ShiftNotesModalProps) {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const translateY = useSharedValue(500);
-  const opacity = useSharedValue(0);
 
+  // Reset state when modal opens
   React.useEffect(() => {
     if (visible) {
-      translateY.value = withSpring(0, { damping: 20, stiffness: 90 });
-      opacity.value = withTiming(1, { duration: 300 });
-    } else {
-      translateY.value = withTiming(500, { duration: 300 });
-      opacity.value = withTiming(0, { duration: 300 });
+      setNotes('');
+      setError(null);
     }
   }, [visible]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
 
   const handleSave = () => {
     if (!notes || !notes.trim()) {
@@ -58,28 +40,36 @@ export function ShiftNotesModal({ visible, onClose, onSave }: ShiftNotesModalPro
     onClose();
   };
 
-  if (!visible) {
-    return null;
-  }
+  const handleCancel = () => {
+    setNotes('');
+    setError(null);
+    onClose();
+  };
 
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={handleCancel}
     >
-      <View style={styles.blurContainer}>
-        {Platform.OS === 'ios' ? (
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, styles.androidOverlay]} />
-        )}
-        <Animated.View style={[styles.modalContainer, animatedStyle]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.overlay}
+      >
+        <TouchableOpacity 
+          style={styles.backdrop} 
+          activeOpacity={1} 
+          onPress={handleCancel}
+        />
+        
+        <View style={styles.modalContainer}>
           <View style={styles.handle} />
+          
           <ThemedText type="title" style={styles.title}>
             Shift Notes
           </ThemedText>
+          
           <ThemedText style={styles.subtitle}>
             Add any notes about your shift
           </ThemedText>
@@ -89,45 +79,26 @@ export function ShiftNotesModal({ visible, onClose, onSave }: ShiftNotesModalPro
               <ThemedText style={styles.errorText}>{error}</ThemedText>
             </View>
           )}
-          
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.keyboardView}
-            keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
-          >
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <TextInput
-                style={styles.input}
-                placeholder="Enter shift notes..."
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={Platform.OS === 'android' ? 8 : 6}
-                value={notes}
-                onChangeText={(text) => {
-                  setNotes(text);
-                  setError(null); // Clear error when user types
-                }}
-                textAlignVertical="top"
-                autoFocus={Platform.OS === 'android'}
-              />
-            </ScrollView>
-          </KeyboardAvoidingView>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Enter shift notes..."
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={4}
+            value={notes}
+            onChangeText={(text) => {
+              setNotes(text);
+              if (error) setError(null);
+            }}
+            textAlignVertical="top"
+          />
 
           <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setNotes('');
-                onClose();
-              }}
-            >
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
               <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
             </TouchableOpacity>
+            
             <TouchableOpacity onPress={handleSave} style={styles.saveButtonContainer}>
               <LinearGradient
                 colors={['#FF6B6B', '#FF8E53']}
@@ -139,65 +110,54 @@ export function ShiftNotesModal({ visible, onClose, onSave }: ShiftNotesModalPro
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </Animated.View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  blurContainer: {
+  overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    position: 'relative',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  androidOverlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  backdrop: {
+    flex: 1,
   },
   modalContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 24,
-    paddingBottom: Platform.OS === 'android' ? 24 : 40,
-    maxHeight: Platform.OS === 'android' ? '90%' : '80%',
-    minHeight: Platform.OS === 'android' ? 400 : undefined,
-  },
-  keyboardView: {
-    flex: 1,
-    maxHeight: Platform.OS === 'android' ? Dimensions.get('window').height * 0.4 : undefined,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: '#ccc',
+    backgroundColor: '#DDD',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
+    color: '#1F1D2B',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
-    marginBottom: 24,
+    marginBottom: 16,
     textAlign: 'center',
   },
   errorContainer: {
     backgroundColor: '#FFE5E5',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#FF6B6B',
   },
@@ -208,16 +168,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   input: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
-    minHeight: Platform.OS === 'android' ? 200 : 120,
-    maxHeight: Platform.OS === 'android' ? 300 : 200,
+    height: 120,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#E0E0E0',
     textAlignVertical: 'top',
+    color: '#1F1D2B',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -225,9 +185,9 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -237,18 +197,17 @@ const styles = StyleSheet.create({
   },
   saveButtonContainer: {
     flex: 2,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   saveButton: {
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
   },
 });
-

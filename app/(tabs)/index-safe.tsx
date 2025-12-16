@@ -36,7 +36,9 @@ export default function HomeScreen() {
             setWorkerId(stored);
           }
         } catch (e) {
-          console.log('Could not load worker ID:', e);
+          if (__DEV__) {
+            console.log('Could not load worker ID:', e);
+          }
         }
 
         // Check for existing shift
@@ -46,10 +48,14 @@ export default function HomeScreen() {
             setIsClockedIn(true);
           }
         } catch (e) {
-          console.log('Could not check shift:', e);
+          if (__DEV__) {
+            console.log('Could not check shift:', e);
+          }
         }
       } catch (e) {
-        console.error('Init error:', e);
+        if (__DEV__) {
+          console.error('Init error:', e);
+        }
         setError('Initialization error');
       } finally {
         setIsInitializing(false);

@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.veralink.worker",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking."
@@ -23,18 +24,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.VeraWorkerApp"
+      "package": "com.veralink.worker"
     },
     "web": {
       "output": "static",
