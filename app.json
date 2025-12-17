@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.veralink.worker",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -61,6 +62,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "45c2c45a-57ad-495f-b20f-08a0fae226d6"
+      }
     }
   }
 }
