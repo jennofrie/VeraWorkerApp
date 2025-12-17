@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Linking,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Drawer } from '@/components/Drawer';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
+import {
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 export default function AboutScreen() {
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -48,6 +48,42 @@ export default function AboutScreen() {
     } catch (error) {
       if (__DEV__) {
         console.error('Error opening URL:', error);
+      }
+    }
+  };
+
+  const handlePrivacyPolicy = async () => {
+    const url = 'https://veralinkcrm.online/privacy-policy';
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        if (__DEV__) {
+          console.error("Don't know how to open URI: " + url);
+        }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.error('Error opening Privacy Policy:', error);
+      }
+    }
+  };
+
+  const handleTermsOfService = async () => {
+    const url = 'https://veralinkcrm.online/terms-of-service';
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        if (__DEV__) {
+          console.error("Don't know how to open URI: " + url);
+        }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.error('Error opening Terms of Service:', error);
       }
     }
   };
@@ -108,14 +144,14 @@ export default function AboutScreen() {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity style={styles.linkItem} onPress={handleTermsOfService}>
               <ThemedText style={styles.linkText}>Terms & Conditions</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
             </TouchableOpacity>
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity style={styles.linkItem} onPress={handlePrivacyPolicy}>
               <ThemedText style={styles.linkText}>Privacy Policy</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
             </TouchableOpacity>
@@ -124,7 +160,7 @@ export default function AboutScreen() {
           {/* Copyright */}
           <View style={styles.copyrightContainer}>
             <ThemedText style={styles.copyrightText}>
-              Copyright © JD Digital Systems
+              Copyright © Vera Link
             </ThemedText>
           </View>
         </ScrollView>

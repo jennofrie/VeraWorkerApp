@@ -6,6 +6,8 @@ import {
   ScrollView,
   Switch,
   Platform,
+  Linking,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from './themed-text';
@@ -13,7 +15,6 @@ import { IconSymbol } from './ui/icon-symbol';
 import { useRouter, usePathname } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
-import { Alert } from 'react-native';
 
 const WORKER_ID_KEY = '@veralink:workerId';
 
@@ -43,6 +44,33 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
   const handleNavigation = (route: string) => {
     router.push(route as any);
     onClose?.();
+  };
+
+  const handleRequestAccountDeletion = () => {
+    Alert.alert(
+      'Request Account Deletion',
+      'Are you sure you want to request account deletion? This action will send an email to our support team.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Request Deletion',
+          style: 'destructive',
+          onPress: () => {
+            const email = 'support@veralink.online';
+            const subject = 'Account Deletion Request';
+            const body = `Please delete my account.\n\nEmail: ${workerEmail || 'Not provided'}\n\nReason: `;
+            const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            Linking.openURL(mailtoUrl).catch((err) => {
+              console.error('Error opening email:', err);
+              Alert.alert('Error', 'Could not open email client. Please contact support@veralink.online directly.');
+            });
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = async () => {
@@ -179,9 +207,23 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         </View>
       </ScrollView>
 
-      {/* Logout Button */}
+      {/* Account Deletion & Logout Section */}
       <View style={styles.logoutSection}>
         <View style={styles.divider} />
+        
+        {/* Request Account Deletion Button */}
+        <TouchableOpacity
+          style={styles.deleteAccountButton}
+          onPress={handleRequestAccountDeletion}
+          activeOpacity={0.7}
+        >
+          <IconSymbol name="trash" size={18} color="#FF6B6B" weight="regular" />
+          <ThemedText style={styles.deleteAccountText}>Request Account Deletion</ThemedText>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+        
+        {/* Logout Button */}
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={handleLogout}
@@ -292,6 +334,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     gap: 12,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  deleteAccountText: {
+    fontSize: 15,
+    color: '#FF6B6B',
+    fontWeight: '500',
   },
   logoutText: {
     fontSize: 16,

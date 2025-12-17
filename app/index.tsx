@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -342,16 +343,57 @@ export default function LoginScreen() {
               </ThemedText>
             </TouchableOpacity>
 
-            {/* Additional Info */}
-            <View style={styles.infoSection}>
-              <ThemedText style={styles.infoText}>
-                Want to try Vera Link for your business?
+            {/* Request Access Section */}
+            <View style={styles.requestAccessSection}>
+              <ThemedText style={styles.requestAccessText}>
+                Vera Link is an invite-only platform for NDIS providers.
               </ThemedText>
-              <TouchableOpacity>
-                <ThemedText style={styles.linkText}>
-                  Start a 7-day free trial{' '}
-                  <IconSymbol name="chevron.right" size={14} color="#00D4AA" />
+              <TouchableOpacity
+                style={styles.requestAccessButton}
+                onPress={() => {
+                  const email = 'onboarding@veralink.online';
+                  const subject = 'Vera Link Access Request';
+                  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+                  Linking.openURL(mailtoUrl).catch((err) => {
+                    if (__DEV__) {
+                      console.error('Error opening email:', err);
+                    }
+                  });
+                }}
+              >
+                <ThemedText style={styles.requestAccessButtonText}>
+                  Request Access
                 </ThemedText>
+                <IconSymbol name="envelope" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Legal Links */}
+            <View style={styles.legalLinksSection}>
+              <TouchableOpacity
+                style={styles.legalLink}
+                onPress={() => {
+                  Linking.openURL('https://veralinkcrm.online/privacy-policy').catch((err) => {
+                    if (__DEV__) {
+                      console.error('Error opening Privacy Policy:', err);
+                    }
+                  });
+                }}
+              >
+                <ThemedText style={styles.legalLinkText}>Privacy Policy</ThemedText>
+              </TouchableOpacity>
+              <ThemedText style={styles.legalSeparator}>•</ThemedText>
+              <TouchableOpacity
+                style={styles.legalLink}
+                onPress={() => {
+                  Linking.openURL('https://veralinkcrm.online/terms-of-service').catch((err) => {
+                    if (__DEV__) {
+                      console.error('Error opening Terms of Service:', err);
+                    }
+                  });
+                }}
+              >
+                <ThemedText style={styles.legalLinkText}>Terms of Service</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -512,26 +554,62 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  infoSection: {
+  requestAccessSection: {
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 10,
+    marginTop: 24,
+    marginBottom: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  infoText: {
+  requestAccessText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 12,
     textAlign: 'center',
+    lineHeight: 20,
   },
-  linkContainer: {
+  requestAccessButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+    backgroundColor: '#00D4AA',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    shadowColor: '#00D4AA',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  linkText: {
-    fontSize: 14,
-    color: '#00D4AA',
-    fontWeight: '600',
+  requestAccessButtonText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  legalLinksSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+    gap: 12,
+  },
+  legalLink: {
+    paddingVertical: 4,
+  },
+  legalLinkText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.4)',
   },
   loadingText: {
     marginTop: 12,
