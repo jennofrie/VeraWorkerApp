@@ -14,8 +14,6 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Note: expo-document-picker needs to be installed: npm install expo-document-picker
-// For now, using a placeholder implementation
 
 interface Document {
   id: string;
@@ -54,39 +52,12 @@ export default function MyDocumentsScreen() {
     ? documents 
     : documents.filter(doc => doc.type === selectedFilter);
 
-  const handleAddDocument = async () => {
-    // Placeholder implementation - will need expo-document-picker for full functionality
-    // For now, create a sample document
-    const newDocument: Document = {
-      id: Date.now().toString(),
-      name: `Document ${documents.length + 1}`,
-      type: 'Other',
-      uploadDate: new Date().toLocaleDateString(),
-    };
-    setDocuments(prev => [...prev, newDocument]);
-    Alert.alert('Success', 'Document added successfully');
-    
-    // TODO: Uncomment when expo-document-picker is installed
-    // try {
-    //   const result = await DocumentPicker.getDocumentAsync({
-    //     type: '*/*',
-    //     copyToCacheDirectory: true,
-    //   });
-    //   if (!result.canceled && result.assets && result.assets.length > 0) {
-    //     const asset = result.assets[0];
-    //     const newDocument: Document = {
-    //       id: Date.now().toString(),
-    //       name: asset.name || 'Document',
-    //       type: 'Other',
-    //       uploadDate: new Date().toLocaleDateString(),
-    //     };
-    //     setDocuments(prev => [...prev, newDocument]);
-    //     Alert.alert('Success', 'Document added successfully');
-    //   }
-    // } catch (error) {
-    //   console.error('Error picking document:', error);
-    //   Alert.alert('Error', 'Failed to add document');
-    // }
+  const handleAddDocument = () => {
+    Alert.alert(
+      'Upload Document',
+      'Document uploads are managed through your organisation. Please contact your supervisor to upload documents.',
+      [{ text: 'OK' }]
+    );
   };
 
   return (

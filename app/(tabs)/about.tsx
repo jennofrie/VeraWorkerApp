@@ -6,17 +6,25 @@ import {
   TouchableOpacity,
   Platform,
   Linking,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+
+const WORKER_ID_KEY = '@veralink:workerId';
 
 export default function AboutScreen() {
+  const router = useRouter();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [workerName, setWorkerName] = useState<string | null>(null);
   const [workerEmail, setWorkerEmail] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   React.useEffect(() => {
     const loadWorkerInfo = async () => {
@@ -34,8 +42,7 @@ export default function AboutScreen() {
     loadWorkerInfo();
   }, []);
 
-  const handleOfficialWebsite = async () => {
-    const url = 'https://veralinkcrm.online';
+  const handleOpenURL = async (url: string) => {
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
@@ -52,21 +59,65 @@ export default function AboutScreen() {
     }
   };
 
-  const handleHelp = async () => {
-    const url = 'https://veralinkcrm.online/help';
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone. All your data will be permanently removed.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: confirmDeleteAccount,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const confirmDeleteAccount = async () => {
+    setIsDeleting(true);
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        if (__DEV__) {
-          console.error("Don't know how to open URI: " + url);
-        }
-      }
+      // Sign out from Supabase Auth
+      await supabase.auth.signOut();
+
+      // Clear all local storage data
+      const keysToRemove = [
+        WORKER_ID_KEY,
+        '@veralink:workerName',
+        '@veralink:workerEmail',
+        '@veralink:currentShiftId',
+      ];
+      await AsyncStorage.multiRemove(keysToRemove);
+
+      setIsDeleting(false);
+
+      // Show success message and redirect
+      Alert.alert(
+        'Account Deleted',
+        'Your account has been deleted successfully. For complete data removal, please contact support@veralinkcrm.online.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.replace('/');
+            },
+          },
+        ]
+      );
     } catch (error) {
+      setIsDeleting(false);
       if (__DEV__) {
-        console.error('Error opening URL:', error);
+        console.error('Error deleting account:', error);
       }
+      Alert.alert(
+        'Error',
+        'Failed to delete account. Please try again or contact support@veralinkcrm.online.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -111,7 +162,7 @@ export default function AboutScreen() {
           <View style={styles.linksContainer}>
             <TouchableOpacity
               style={styles.linkItem}
-              onPress={handleOfficialWebsite}
+              onPress={() => handleOpenURL('https://veralinkcrm.online')}
             >
               <ThemedText style={styles.linkText}>Official Website</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
@@ -121,7 +172,7 @@ export default function AboutScreen() {
 
             <TouchableOpacity
               style={styles.linkItem}
-              onPress={handleHelp}
+              onPress={() => handleOpenURL('https://veralinkcrm.online/help')}
             >
               <ThemedText style={styles.linkText}>Help</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
@@ -129,17 +180,44 @@ export default function AboutScreen() {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.linkItem}>
-              <ThemedText style={styles.linkText}>Terms & Conditions</ThemedText>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={() => handleOpenURL('https://veralinkcrm.online/terms-of-service')}
+            >
+              <ThemedText style={styles.linkText}>Terms of Service</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
             </TouchableOpacity>
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={() => handleOpenURL('https://veralinkcrm.online/privacy-policy')}
+            >
               <ThemedText style={styles.linkText}>Privacy Policy</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
             </TouchableOpacity>
+          </View>
+
+          {/* Account Section */}
+          <View style={styles.accountSection}>
+            <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+            <View style={styles.linksContainer}>
+              <TouchableOpacity
+                style={styles.deleteAccountItem}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#FF3B30" />
+                ) : (
+                  <>
+                    <IconSymbol name="trash.fill" size={20} color="#FF3B30" weight="regular" />
+                    <ThemedText style={styles.deleteAccountText}>Delete Account</ThemedText>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Copyright */}
@@ -260,5 +338,30 @@ const styles = StyleSheet.create({
   copyrightText: {
     fontSize: 14,
     color: '#666',
+  },
+  accountSection: {
+    marginHorizontal: 20,
+    marginBottom: 40,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 12,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  deleteAccountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    gap: 10,
+  },
+  deleteAccountText: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '600',
   },
 });

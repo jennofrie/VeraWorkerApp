@@ -22,13 +22,14 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    // Hide splash screen after a short delay to ensure smooth transition
-    // This prevents flash of white screen on iOS
+    // Hide splash screen after delay to ensure smooth transition
+    // iOS App Store requires splash to be visible for at least 1-2 seconds
+    // This also prevents flash of white screen on iOS
     const timer = setTimeout(() => {
       SplashScreen.hideAsync().catch(() => {
         // Ignore errors if splash screen is already hidden
       });
-    }, 100);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);

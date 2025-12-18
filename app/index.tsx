@@ -365,11 +365,11 @@ export default function LoginScreen() {
 
             {/* Footer Links */}
             <View style={styles.footerLinks}>
-              <TouchableOpacity onPress={() => Linking.openURL('https://veralinkcrm.online/privacy')}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://veralinkcrm.online/privacy-policy')}>
                 <ThemedText style={styles.footerLinkText}>Privacy Policy</ThemedText>
               </TouchableOpacity>
               <ThemedText style={styles.footerDot}>•</ThemedText>
-              <TouchableOpacity onPress={() => Linking.openURL('https://veralinkcrm.online/terms')}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://veralinkcrm.online/terms-of-service')}>
                 <ThemedText style={styles.footerLinkText}>Terms of Service</ThemedText>
               </TouchableOpacity>
             </View>
