@@ -16,8 +16,8 @@ A companion mobile app for workers to clock in/out with NDIS compliance features
 Create a `.env` file in the root directory with your Supabase credentials:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+EXPO_PUBLIC_SUPABASE_URL="your_supabase_url"
+EXPO_PUBLIC_SUPABASE_ANON_KEY="your_supabase_anonkey"
 ```
 
 ## Database Schema

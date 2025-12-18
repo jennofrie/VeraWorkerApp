@@ -54,9 +54,11 @@ export default function LoginScreen() {
       }
 
       // User has stored credentials, now check Supabase session (with timeout)
-      const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+      // Only import Supabase if we have stored credentials (lazy loading optimization)
+      const supabaseModule = await import('@/lib/supabase');
+      const { supabase, isSupabaseConfigured } = supabaseModule;
       
-      // Check if Supabase is properly configured
+      // Check if Supabase is properly configured BEFORE making any network calls
       if (!isSupabaseConfigured()) {
         if (__DEV__) {
           console.warn('Supabase is not configured. Skipping auth check.');
@@ -72,23 +74,25 @@ export default function LoginScreen() {
       let session = null;
       try {
         const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('Session check timeout')), 5000)
         );
         
-        const { data, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
         
-        if (error) {
+        // If we get here, the sessionPromise won (not the timeout)
+        if (result?.data) {
+          session = result.data.session || null;
+        } else if (result?.error) {
           if (__DEV__) {
-            console.warn('Error getting session:', error.message);
+            console.warn('Error getting session:', result.error.message);
           }
-        } else {
-          session = data?.session || null;
         }
-      } catch (sessionError: any) {
+      } catch (sessionError: unknown) {
         // Handle network timeouts and other errors gracefully
+        const errorMessage = sessionError instanceof Error ? sessionError.message : 'Unknown error';
         if (__DEV__) {
-          console.warn('Session check failed (timeout or network issue):', sessionError.message);
+          console.warn('Session check failed (timeout or network issue):', errorMessage);
         }
         // Continue without session - user will need to login
       }
@@ -236,13 +240,13 @@ export default function LoginScreen() {
   if (isChecking) {
     return (
       <LinearGradient
-        colors={['#1F1D2B', '#2B2B40']}
+        colors={['#1E3A8A', '#0EA5E9', '#06B6D4']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientBackground}
       >
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#00D4AA" />
+          <ActivityIndicator size="large" color="#FFFFFF" />
           <ThemedText style={styles.loadingText}>Loading...</ThemedText>
         </View>
       </LinearGradient>
@@ -251,7 +255,7 @@ export default function LoginScreen() {
 
   return (
     <LinearGradient
-      colors={['#1F1D2B', '#2B2B40']}
+      colors={['#1E3A8A', '#0EA5E9', '#06B6D4']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.gradientBackground}
@@ -404,7 +408,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   regionText: {
     fontSize: 14,
@@ -421,17 +427,17 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   logoContainer: {
-    backgroundColor: 'rgba(31, 29, 43, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 20,
     zIndex: 101,
     elevation: 101,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#06B6D4',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
   },
   logoText: {
@@ -482,25 +488,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   loginButton: {
-    backgroundColor: '#5B9BD5',
+    backgroundColor: '#00D4AA',
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
     marginBottom: 20,
-    shadowColor: '#5B9BD5',
+    shadowColor: '#00D4AA',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
   },

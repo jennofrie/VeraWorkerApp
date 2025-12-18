@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "veraworkerapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.veralink.worker",
@@ -52,16 +51,15 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#1E3A8A",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1E3A8A"
           }
         }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},

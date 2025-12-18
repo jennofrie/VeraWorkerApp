@@ -10,7 +10,9 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Keep splash screen visible while app loads
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore errors if splash screen is not available
+});
 
 export const unstable_settings = {
   anchor: '(tabs)',

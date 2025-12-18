@@ -1,23 +1,21 @@
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
   Modal,
+  Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  View,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { ThemedText } from './themed-text';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
+  useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { ThemedText } from './themed-text';
 
 interface WorkerLoginModalProps {
   visible: boolean;
@@ -93,7 +91,7 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
         
         // Provide specific error messages
         if (workerError.code === 'PGRST301' || workerError.message?.includes('permission denied') || workerError.message?.includes('403')) {
-          setError('Permission denied. Please ensure RLS policy "Allow anonymous reads on workers" exists. See FIX_RLS_POLICIES.sql');
+          setError('Permission denied. Please ensure RLS policy "Allow anonymous reads on workers" exists. See SQL/FIX_RLS_POLICIES.sql');
         } else if (workerError.code === 'PGRST116') {
           setError('Worker account not found. Please ensure the worker exists in the workers table with matching email.');
         } else {
@@ -132,9 +130,10 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
       onLogin(workerData.id, workerData.name, workerData.email);
       setEmail('');
       setPassword('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error during login:', err);
-      setError(err.message || 'Login failed. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -184,7 +183,7 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
               placeholder="Email"
               placeholderTextColor="rgba(255, 255, 255, 0.5)"
               value={email}
-              onChangeText={(text) => {
+              onChangeText={(text: string) => {
                 setEmail(text);
                 setError(null);
               }}
@@ -200,7 +199,7 @@ export function WorkerLoginModal({ visible, onClose, onLogin }: WorkerLoginModal
               placeholder="Password"
               placeholderTextColor="rgba(255, 255, 255, 0.5)"
               value={password}
-              onChangeText={(text) => {
+              onChangeText={(text: string) => {
                 setPassword(text);
                 setError(null);
               }}

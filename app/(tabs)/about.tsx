@@ -35,7 +35,25 @@ export default function AboutScreen() {
   }, []);
 
   const handleOfficialWebsite = async () => {
-    const url = 'https://quantumcare.com.au';
+    const url = 'https://veralinkcrm.online';
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        if (__DEV__) {
+          console.error("Don't know how to open URI: " + url);
+        }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.error('Error opening URL:', error);
+      }
+    }
+  };
+
+  const handleHelp = async () => {
+    const url = 'https://veralinkcrm.online/help';
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
@@ -101,7 +119,10 @@ export default function AboutScreen() {
 
             <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.linkItem}>
+            <TouchableOpacity
+              style={styles.linkItem}
+              onPress={handleHelp}
+            >
               <ThemedText style={styles.linkText}>Help</ThemedText>
               <IconSymbol name="chevron.right" size={16} color="#666" weight="regular" />
             </TouchableOpacity>
