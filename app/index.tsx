@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ScrollView,
   KeyboardAvoidingView,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -346,16 +347,30 @@ export default function LoginScreen() {
               </ThemedText>
             </TouchableOpacity>
 
-            {/* Additional Info */}
-            <View style={styles.infoSection}>
-              <ThemedText style={styles.infoText}>
-                Want to try Vera Link for your business?
+            {/* Invite-Only Platform Info */}
+            <View style={styles.inviteCard}>
+              <ThemedText style={styles.inviteText}>
+                Vera Link is an invite-only platform for NDIS providers.
               </ThemedText>
-              <TouchableOpacity>
-                <ThemedText style={styles.linkText}>
-                  Start a 7-day free trial{' '}
-                  <IconSymbol name="chevron.right" size={14} color="#00D4AA" />
-                </ThemedText>
+              <TouchableOpacity
+                style={styles.requestAccessButton}
+                onPress={() => {
+                  Linking.openURL('mailto:support@veralinkcrm.online?subject=Request%20Access%20to%20Vera%20Link');
+                }}
+              >
+                <ThemedText style={styles.requestAccessText}>Request Access</ThemedText>
+                <IconSymbol name="envelope.fill" size={18} color="#1E3A8A" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Footer Links */}
+            <View style={styles.footerLinks}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://veralinkcrm.online/privacy')}>
+                <ThemedText style={styles.footerLinkText}>Privacy Policy</ThemedText>
+              </TouchableOpacity>
+              <ThemedText style={styles.footerDot}>•</ThemedText>
+              <TouchableOpacity onPress={() => Linking.openURL('https://veralinkcrm.online/terms')}>
+                <ThemedText style={styles.footerLinkText}>Terms of Service</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -518,26 +533,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  infoSection: {
+  inviteCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 20,
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginTop: 8,
   },
-  infoText: {
+  inviteText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
   },
-  linkContainer: {
+  requestAccessButton: {
+    backgroundColor: '#00D4AA',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    gap: 10,
   },
-  linkText: {
-    fontSize: 14,
-    color: '#00D4AA',
-    fontWeight: '600',
+  requestAccessText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 28,
+    gap: 12,
+  },
+  footerLinkText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textDecorationLine: 'underline',
+  },
+  footerDot: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.4)',
   },
   loadingText: {
     marginTop: 12,
