@@ -6,17 +6,23 @@ import {
   ScrollView,
   Switch,
   Platform,
+  Image,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from './themed-text';
 import { IconSymbol } from './ui/icon-symbol';
 import { useRouter, usePathname } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/lib/supabase';
+import { safeSignOut } from '@/lib/supabase';
 import { Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 const WORKER_ID_KEY = '@veralink:workerId';
 const SHIFT_NOTIFICATIONS_KEY = '@veralink:shiftNotifications';
+const PROFILE_PHOTO_KEY = '@veralink:profilePhoto';
+const DISPLAY_NAME_KEY = '@veralink:displayName';
 
 interface DrawerContentProps {
   workerName?: string | null;
@@ -28,22 +34,36 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
   const router = useRouter();
   const pathname = usePathname();
   const [shiftNotifications, setShiftNotifications] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [tempName, setTempName] = useState('');
 
-  // Load saved notification preference on mount
+  // Load saved preferences on mount
   useEffect(() => {
-    const loadNotificationPreference = async () => {
+    const loadPreferences = async () => {
       try {
-        const saved = await AsyncStorage.getItem(SHIFT_NOTIFICATIONS_KEY);
-        if (saved !== null) {
-          setShiftNotifications(saved === 'true');
+        const [savedNotif, savedPhoto, savedName] = await AsyncStorage.multiGet([
+          SHIFT_NOTIFICATIONS_KEY,
+          PROFILE_PHOTO_KEY,
+          DISPLAY_NAME_KEY,
+        ]);
+        if (savedNotif[1] !== null) {
+          setShiftNotifications(savedNotif[1] === 'true');
+        }
+        if (savedPhoto[1]) {
+          setProfilePhoto(savedPhoto[1]);
+        }
+        if (savedName[1]) {
+          setDisplayName(savedName[1]);
         }
       } catch (error) {
         if (__DEV__) {
-          console.error('Error loading notification preference:', error);
+          console.error('Error loading preferences:', error);
         }
       }
     };
-    loadNotificationPreference();
+    loadPreferences();
   }, []);
 
   // Handle notification toggle with feedback
@@ -63,6 +83,61 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         console.error('Error saving notification preference:', error);
       }
     }
+  };
+
+  // Handle photo selection
+  const handleSelectPhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your photo library to set a profile photo.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const photoUri = result.assets[0].uri;
+        setProfilePhoto(photoUri);
+        await AsyncStorage.setItem(PROFILE_PHOTO_KEY, photoUri);
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.error('Error selecting photo:', error);
+      }
+      Alert.alert('Error', 'Failed to select photo. Please try again.');
+    }
+  };
+
+  // Handle name editing
+  const handleEditName = () => {
+    setTempName(displayName || workerName || '');
+    setShowNameModal(true);
+  };
+
+  const handleSaveName = async () => {
+    const trimmedName = tempName.trim();
+    if (trimmedName) {
+      setDisplayName(trimmedName);
+      try {
+        await AsyncStorage.setItem(DISPLAY_NAME_KEY, trimmedName);
+      } catch (error) {
+        if (__DEV__) {
+          console.error('Error saving display name:', error);
+        }
+      }
+    }
+    setShowNameModal(false);
   };
 
   const menuItems = [
@@ -89,31 +164,35 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         onClose();
       }
       
-      // Clear all stored data
+      // Clear all stored data including local profile customizations
       const keysToRemove = [
         WORKER_ID_KEY,
         '@veralink:workerName',
         '@veralink:workerEmail',
         '@veralink:currentShiftId',
+        PROFILE_PHOTO_KEY,
+        DISPLAY_NAME_KEY,
+        SHIFT_NOTIFICATIONS_KEY,
       ];
       
       await AsyncStorage.multiRemove(keysToRemove);
       
-      // Sign out from Supabase Auth
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) {
-        console.error('Supabase sign out error:', signOutError);
+      // Sign out from Supabase Auth using safe helper (won't crash if not configured)
+      const { error: signOutError } = await safeSignOut();
+      if (signOutError && __DEV__) {
+        console.warn('Supabase sign out warning:', signOutError.message);
       }
       
       // Wait for drawer to fully close before navigating
-      // This ensures the modal doesn't block navigation
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Navigate to login screen - use replace to clear navigation stack
       router.replace('/');
       
     } catch (error) {
-      console.error('Error signing out:', error);
+      if (__DEV__) {
+        console.error('Error signing out:', error);
+      }
       
       // Even if there's an error, try to clear storage and navigate to login
       try {
@@ -122,10 +201,14 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
           '@veralink:workerName',
           '@veralink:workerEmail',
           '@veralink:currentShiftId',
+          PROFILE_PHOTO_KEY,
+          DISPLAY_NAME_KEY,
         ]);
-        await supabase.auth.signOut();
+        await safeSignOut();
       } catch (clearError) {
-        console.error('Error clearing data:', clearError);
+        if (__DEV__) {
+          console.error('Error clearing data:', clearError);
+        }
       }
       
       // Wait for drawer to close
@@ -153,26 +236,75 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* User Profile Section */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={['#5B9BD5', '#4A8BC2']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatar}
-            >
-              <IconSymbol name="person.fill" size={32} color="#FFFFFF" weight="regular" />
-              <View style={styles.avatarBadge}>
-                <IconSymbol name="plus" size={12} color="#FFFFFF" weight="bold" />
-              </View>
-            </LinearGradient>
-          </View>
-          <ThemedText style={styles.userName}>
-            {workerName || 'Worker Name'}
-          </ThemedText>
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={handleSelectPhoto}
+            activeOpacity={0.7}
+          >
+            {profilePhoto ? (
+              <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
+            ) : (
+              <LinearGradient
+                colors={['#5B9BD5', '#4A8BC2']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatar}
+              >
+                <IconSymbol name="person.fill" size={32} color="#FFFFFF" weight="regular" />
+              </LinearGradient>
+            )}
+            <View style={styles.avatarBadge}>
+              <IconSymbol name="camera.fill" size={10} color="#FFFFFF" weight="bold" />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleEditName} activeOpacity={0.7}>
+            <View style={styles.nameContainer}>
+              <ThemedText style={styles.userName}>
+                {displayName || workerName || 'Worker Name'}
+              </ThemedText>
+              <IconSymbol name="pencil" size={14} color="#666" weight="regular" />
+            </View>
+          </TouchableOpacity>
           <ThemedText style={styles.userEmail}>
             {workerEmail || 'worker@example.com'}
           </ThemedText>
         </View>
+
+        {/* Name Edit Modal */}
+        <Modal
+          visible={showNameModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowNameModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>Edit Display Name</ThemedText>
+              <TextInput
+                style={styles.nameInput}
+                value={tempName}
+                onChangeText={setTempName}
+                placeholder="Enter your name"
+                placeholderTextColor="#999"
+                autoFocus
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowNameModal(false)}
+                >
+                  <ThemedText style={styles.modalCancelText}>Cancel</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.modalSaveButton}
+                  onPress={handleSaveName}
+                >
+                  <ThemedText style={styles.modalSaveText}>Save</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
@@ -258,18 +390,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
   avatarBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#22B07D',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#5B9BD5',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+  },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   userName: {
     fontSize: 18,
@@ -333,6 +475,65 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     color: '#FF6B6B',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F1D2B',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#1F1D2B',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '600',
+  },
+  modalSaveButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#5B9BD5',
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    fontSize: 16,
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

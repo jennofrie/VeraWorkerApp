@@ -13,6 +13,7 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses your location to record clock in/out locations for shift tracking.",
+        "NSPhotoLibraryUsageDescription": "This app allows you to choose a profile photo from your photo library.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -46,12 +47,18 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow VeraWorkerApp to access your photos to set a profile picture."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#1E3A8A"
+          "backgroundColor": "#E8EDF4"
         }
       ]
     ],

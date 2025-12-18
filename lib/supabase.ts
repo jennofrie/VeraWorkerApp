@@ -101,6 +101,28 @@ export const isSupabaseConfigured = (): boolean => {
   return supabaseInstance !== null;
 };
 
+// Safe helper function to get Supabase client (returns null if not configured)
+export const getSupabaseClient = (): SupabaseClient | null => {
+  return supabaseInstance;
+};
+
+// Safe sign out helper - won't crash if Supabase isn't configured
+export const safeSignOut = async (): Promise<{ error: Error | null }> => {
+  if (!supabaseInstance) {
+    // Supabase not configured, just return success (nothing to sign out from)
+    return { error: null };
+  }
+  try {
+    const { error } = await supabaseInstance.auth.signOut();
+    return { error: error ? new Error(error.message) : null };
+  } catch (err) {
+    if (__DEV__) {
+      console.error('Error during sign out:', err);
+    }
+    return { error: err instanceof Error ? err : new Error('Sign out failed') };
+  }
+};
+
 // Export the Supabase client
 // IMPORTANT: Always check isSupabaseConfigured() before using this client
 // If configuration is invalid, this will throw an error when accessed
