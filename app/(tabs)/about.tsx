@@ -8,6 +8,7 @@ import {
   Linking,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
@@ -150,9 +151,11 @@ export default function AboutScreen() {
         >
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <View style={styles.logo}>
-              <ThemedText style={styles.logoText}>VL</ThemedText>
-            </View>
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Version */}
@@ -282,22 +285,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   logo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  logoText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#1E3A8A',
+    width: 100,
+    height: 100,
+    borderRadius: 20,
   },
   versionText: {
     fontSize: 16,

@@ -21,38 +21,30 @@ interface NotificationItem {
   isRead: boolean;
 }
 
-// Mock notification data - no backend needed
+// Welcome notifications for new users - appropriate for App Store review
 const mockNotifications: NotificationItem[] = [
   {
     id: '1',
-    type: 'shift',
-    title: 'Shift Reminder',
-    message: 'Your shift starts in 30 minutes at 123 Main Street',
-    time: '2 hours ago',
+    type: 'system',
+    title: 'Welcome to Vera Link',
+    message: 'Thank you for joining Vera Link! View your schedule, clock in for shifts, and manage your availability all in one place.',
+    time: 'Just now',
     isRead: false,
   },
   {
     id: '2',
-    type: 'schedule',
-    title: 'Schedule Updated',
-    message: 'Your schedule for next week has been updated. Please review your new shifts.',
-    time: '1 day ago',
+    type: 'info',
+    title: 'Getting Started',
+    message: 'Explore the app using the menu. Check My Schedule to view upcoming shifts and use the About section for help and support.',
+    time: '1 minute ago',
     isRead: false,
   },
   {
     id: '3',
-    type: 'system',
-    title: 'Welcome to Vera Link',
-    message: 'Thank you for using Vera Link Worker App. Check your schedule and clock in for your shifts.',
-    time: '3 days ago',
-    isRead: true,
-  },
-  {
-    id: '4',
-    type: 'info',
-    title: 'App Update Available',
-    message: 'A new version of the app is available with improved features and bug fixes.',
-    time: '5 days ago',
+    type: 'schedule',
+    title: 'Set Your Availability',
+    message: 'Let your organisation know when you\'re available to work. Go to Availability in the menu to set your preferences.',
+    time: '2 minutes ago',
     isRead: true,
   },
 ];

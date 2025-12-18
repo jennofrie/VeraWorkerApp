@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { Alert } from 'react-native';
 
 const WORKER_ID_KEY = '@veralink:workerId';
+const SHIFT_NOTIFICATIONS_KEY = '@veralink:shiftNotifications';
 
 interface DrawerContentProps {
   workerName?: string | null;
@@ -27,6 +28,42 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
   const router = useRouter();
   const pathname = usePathname();
   const [shiftNotifications, setShiftNotifications] = useState(false);
+
+  // Load saved notification preference on mount
+  useEffect(() => {
+    const loadNotificationPreference = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(SHIFT_NOTIFICATIONS_KEY);
+        if (saved !== null) {
+          setShiftNotifications(saved === 'true');
+        }
+      } catch (error) {
+        if (__DEV__) {
+          console.error('Error loading notification preference:', error);
+        }
+      }
+    };
+    loadNotificationPreference();
+  }, []);
+
+  // Handle notification toggle with feedback
+  const handleNotificationToggle = async (value: boolean) => {
+    setShiftNotifications(value);
+    try {
+      await AsyncStorage.setItem(SHIFT_NOTIFICATIONS_KEY, value.toString());
+      Alert.alert(
+        'Notification Settings',
+        value
+          ? 'Shift notifications enabled. You will receive reminders for upcoming shifts.'
+          : 'Shift notifications disabled. You will no longer receive shift reminders.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      if (__DEV__) {
+        console.error('Error saving notification preference:', error);
+      }
+    }
+  };
 
   const menuItems = [
     { id: 'notification', label: 'Notification', icon: 'bell', route: '/(tabs)/notification' },
@@ -171,7 +208,7 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
             <ThemedText style={styles.toggleLabel}>Shift Notifications</ThemedText>
             <Switch
               value={shiftNotifications}
-              onValueChange={setShiftNotifications}
+              onValueChange={handleNotificationToggle}
               trackColor={{ false: '#E0E0E0', true: '#5B9BD5' }}
               thumbColor={shiftNotifications ? '#FFFFFF' : '#F4F3F4'}
             />
