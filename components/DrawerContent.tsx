@@ -158,6 +158,9 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
   };
 
   const handleLogout = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:160',message:'LOGOUT_START',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C,D'})}).catch(()=>{});
+    // #endregion
     try {
       // Close drawer first - this is important for navigation to work
       if (onClose) {
@@ -175,10 +178,29 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         SHIFT_NOTIFICATIONS_KEY,
       ];
       
+      // #region agent log
+      const beforeRemove = await AsyncStorage.multiGet(keysToRemove);
+      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:178',message:'BEFORE_ASYNCSTORAGE_REMOVE',data:{beforeRemove:beforeRemove.map(([k,v])=>({key:k,hasValue:!!v})),timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       await AsyncStorage.multiRemove(keysToRemove);
       
+      // #region agent log
+      const afterRemove = await AsyncStorage.multiGet(keysToRemove);
+      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:179',message:'AFTER_ASYNCSTORAGE_REMOVE',data:{afterRemove:afterRemove.map(([k,v])=>({key:k,hasValue:!!v})),timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       // Sign out from Supabase Auth using safe helper (won't crash if not configured)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:181',message:'BEFORE_SUPABASE_SIGNOUT',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+      // #endregion
+      
       const { error: signOutError } = await safeSignOut();
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:181',message:'AFTER_SUPABASE_SIGNOUT',data:{signOutError:signOutError?.message||null,hasError:!!signOutError,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+      // #endregion
+      
       if (signOutError && __DEV__) {
         console.warn('Supabase sign out warning:', signOutError.message);
       }
@@ -187,7 +209,15 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Navigate to login screen - use replace to clear navigation stack
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:190',message:'BEFORE_ROUTER_REPLACE',data:{targetRoute:'/',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
       router.replace('/');
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:190',message:'AFTER_ROUTER_REPLACE',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       
     } catch (error) {
       if (__DEV__) {
