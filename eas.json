@@ -19,6 +19,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "cache": {
+        "clear": true
+      },
       "ios": {
         "resourceClass": "m-medium"
       },
