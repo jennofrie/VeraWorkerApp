@@ -22,11 +22,12 @@ const DRAWER_WIDTH = width * 0.75;
 interface DrawerProps {
   visible: boolean;
   onClose: () => void;
+  onLogout: () => void; // NEW: Callback to handle logout from parent (outside Modal)
   workerName?: string | null;
   workerEmail?: string | null;
 }
 
-export function Drawer({ visible, onClose, workerName, workerEmail }: DrawerProps) {
+export function Drawer({ visible, onClose, onLogout, workerName, workerEmail }: DrawerProps) {
   const translateX = useSharedValue(-DRAWER_WIDTH);
 
   React.useEffect(() => {
@@ -61,6 +62,7 @@ export function Drawer({ visible, onClose, workerName, workerEmail }: DrawerProp
             workerName={workerName}
             workerEmail={workerEmail}
             onClose={onClose}
+            onLogout={onLogout}
           />
         </Animated.View>
       </View>

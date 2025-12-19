@@ -61,9 +61,12 @@ if (hasValidConfig) {
         // This prevents long waits during app startup
         fetch: (url, options = {}) => {
           const controller = new AbortController();
-          // Shorter timeout for auth endpoints (faster startup)
+          // Determine timeout based on endpoint type
           const isAuthEndpoint = typeof url === 'string' && url.includes('/auth/');
-          const timeout = isAuthEndpoint ? 5000 : 20000; // 5s for auth, 20s for data (increased from 15s)
+          const isScheduleEndpoint = typeof url === 'string' && url.includes('worker_schedules');
+          // Longer timeout for schedule queries (30s) as they may fetch more data
+          // 5s for auth (faster startup), 30s for schedules, 20s for other data queries
+          const timeout = isAuthEndpoint ? 5000 : isScheduleEndpoint ? 30000 : 20000;
           const timeoutId = setTimeout(() => {
             controller.abort();
             if (__DEV__) {

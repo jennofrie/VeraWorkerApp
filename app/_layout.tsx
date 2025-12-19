@@ -14,9 +14,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore errors if splash screen is not available
 });
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+// IMPORTANT:
+// Do NOT set `unstable_settings.anchor` for this app.
+// Anchoring to `(tabs)` can cause navigation attempts to `/` to resolve back into tabs,
+// which makes logout appear "stuck" on My Schedule.
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

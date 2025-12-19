@@ -721,6 +721,50 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
   );
 }
 
+/**
+ * expo-router requires route files to export a default component.
+ * This wrapper keeps the existing `ClockInScreen` (used elsewhere via named import)
+ * and satisfies routing to remove warnings and route-table inconsistencies.
+ */
+export default function ClockInRoute() {
+  const [workerId, setWorkerId] = useState<string | null>(null);
+  const [workerName, setWorkerName] = useState<string | null>(null);
+  const [workerEmail, setWorkerEmail] = useState<string | null>(null);
+  const [isHydrating, setIsHydrating] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const [id, name, email] = await AsyncStorage.multiGet([
+          WORKER_ID_KEY,
+          '@veralink:workerName',
+          '@veralink:workerEmail',
+        ]);
+        if (!isMounted) return;
+        setWorkerId(id[1] || null);
+        setWorkerName(name[1] || null);
+        setWorkerEmail(email[1] || null);
+      } finally {
+        if (isMounted) setIsHydrating(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (isHydrating) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#5B9BD5" />
+      </View>
+    );
+  }
+
+  return <ClockInScreen workerId={workerId} workerName={workerName} workerEmail={workerEmail} />;
+}
+
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',

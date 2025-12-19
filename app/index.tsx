@@ -40,7 +40,7 @@ export default function LoginScreen() {
 
   const checkAuth = async () => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:41',message:'CHECKAUTH_START',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'CHECKAUTH_START',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
     try {
       // OPTIMIZATION: Check AsyncStorage first (fast, local) before network call
@@ -52,13 +52,13 @@ export default function LoginScreen() {
       const storedWorkerEmail = storedData[2][1];
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:49',message:'CHECKAUTH_ASYNCSTORAGE_CHECK',data:{storedWorkerId:!!storedWorkerId,storedWorkerName:!!storedWorkerName,storedWorkerEmail:!!storedWorkerEmail,isValidUUID:isValidUUID(storedWorkerId||''),timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C,E'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'CHECKAUTH_ASYNCSTORAGE_CHECK',data:{storedWorkerId:!!storedWorkerId,storedWorkerName:!!storedWorkerName,storedWorkerEmail:!!storedWorkerEmail,isValidUUID:isValidUUID(storedWorkerId||''),timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
 
       // If no stored credentials, show login immediately (no network call needed)
       if (!storedWorkerId || !storedWorkerName || !storedWorkerEmail || !isValidUUID(storedWorkerId)) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:52',message:'CHECKAUTH_NO_STORED_CREDS',data:{action:'SHOW_LOGIN',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'CHECKAUTH_NO_STORED_CREDS',data:{action:'SHOW_LOGIN',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
         // #endregion
         setIsChecking(false);
         return;
@@ -84,7 +84,7 @@ export default function LoginScreen() {
       // This prevents long waits if network is slow
       let session = null;
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:77',message:'BEFORE_SESSION_CHECK',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'BEFORE_SESSION_CHECK',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
       // #endregion
       try {
         const sessionPromise = supabase.auth.getSession();
@@ -112,7 +112,7 @@ export default function LoginScreen() {
       }
       
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:102',message:'AFTER_SESSION_CHECK',data:{hasSession:!!session,sessionUserId:session?.user?.id||null,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'AFTER_SESSION_CHECK',data:{hasSession:!!session,sessionUserId:session?.user?.id||null,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
       // #endregion
       
       // If no session, clear stored data and show login
@@ -125,7 +125,7 @@ export default function LoginScreen() {
       // Session exists and we have stored worker data - user is logged in
       if (storedWorkerId && storedWorkerName && storedWorkerEmail && isValidUUID(storedWorkerId)) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:109',message:'CHECKAUTH_REDIRECT_TO_TABS',data:{reason:'HAS_SESSION_AND_WORKER_DATA',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'CHECKAUTH_REDIRECT_TO_TABS',data:{reason:'HAS_SESSION_AND_WORKER_DATA',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
         // #endregion
         // User is already logged in, navigate to tabs
         router.replace('/(tabs)');
@@ -140,7 +140,7 @@ export default function LoginScreen() {
       setIsChecking(false);
     } catch (error) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:121',message:'CHECKAUTH_ERROR',data:{error:error instanceof Error?error.message:'unknown',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/index.tsx:checkAuth',message:'CHECKAUTH_ERROR',data:{error:error instanceof Error?error.message:'unknown',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
       if (__DEV__) {
         console.error('Error checking auth:', error);

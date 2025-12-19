@@ -6,6 +6,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+// SIMPLIFIED: No auth gating here.
+// The logout button clears storage and calls router.replace('/').
+// The login screen's checkAuth() will show the login form when storage is empty.
+// Adding auth checks here caused infinite render loops.
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 

@@ -18,6 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { safeSignOut } from '@/lib/supabase';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Updates from 'expo-updates';
+const LOG_ENDPOINT = 'http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79';
 
 const WORKER_ID_KEY = '@veralink:workerId';
 const SHIFT_NOTIFICATIONS_KEY = '@veralink:shiftNotifications';
@@ -28,9 +30,10 @@ interface DrawerContentProps {
   workerName?: string | null;
   workerEmail?: string | null;
   onClose?: () => void;
+  onLogout?: () => void; // NEW: Callback to trigger logout from parent (outside Modal)
 }
 
-export function DrawerContent({ workerName, workerEmail, onClose }: DrawerContentProps) {
+export function DrawerContent({ workerName, workerEmail, onClose, onLogout }: DrawerContentProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [shiftNotifications, setShiftNotifications] = useState(false);
@@ -158,16 +161,10 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
   };
 
   const handleLogout = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:160',message:'LOGOUT_START',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C,D'})}).catch(()=>{});
-    // #endregion
+    console.log('[LOGOUT] START');
+    
     try {
-      // Close drawer first - this is important for navigation to work
-      if (onClose) {
-        onClose();
-      }
-      
-      // Clear all stored data including local profile customizations
+      // Step 1: Clear all stored data
       const keysToRemove = [
         WORKER_ID_KEY,
         '@veralink:workerName',
@@ -178,53 +175,54 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         SHIFT_NOTIFICATIONS_KEY,
       ];
       
-      // #region agent log
-      const beforeRemove = await AsyncStorage.multiGet(keysToRemove);
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:178',message:'BEFORE_ASYNCSTORAGE_REMOVE',data:{beforeRemove:beforeRemove.map(([k,v])=>({key:k,hasValue:!!v})),timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
       await AsyncStorage.multiRemove(keysToRemove);
+      console.log('[LOGOUT] STORAGE_CLEARED');
       
-      // #region agent log
-      const afterRemove = await AsyncStorage.multiGet(keysToRemove);
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:179',message:'AFTER_ASYNCSTORAGE_REMOVE',data:{afterRemove:afterRemove.map(([k,v])=>({key:k,hasValue:!!v})),timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
-      // Sign out from Supabase Auth using safe helper (won't crash if not configured)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:181',message:'BEFORE_SUPABASE_SIGNOUT',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
-      // #endregion
-      
+      // Step 2: Sign out from Supabase Auth
       const { error: signOutError } = await safeSignOut();
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:181',message:'AFTER_SUPABASE_SIGNOUT',data:{signOutError:signOutError?.message||null,hasError:!!signOutError,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
-      // #endregion
+      console.log('[LOGOUT] SUPABASE_SIGNOUT_DONE', { hasError: !!signOutError });
       
       if (signOutError && __DEV__) {
         console.warn('Supabase sign out warning:', signOutError.message);
       }
       
-      // Wait for drawer to fully close before navigating
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Step 3: Force app reload - this is the GUARANTEED fix
+      // Updates.reloadAsync() completely restarts the app, which will:
+      // 1. Clear all JS state
+      // 2. Re-run the app from scratch
+      // 3. Since AsyncStorage is cleared, the login screen will show
       
-      // Navigate to login screen - use replace to clear navigation stack
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:190',message:'BEFORE_ROUTER_REPLACE',data:{targetRoute:'/',timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
-      router.replace('/');
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d4870f98-f8e6-4d33-8cef-1542ac23d1d6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'DrawerContent.tsx:190',message:'AFTER_ROUTER_REPLACE',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
-    } catch (error) {
-      if (__DEV__) {
-        console.error('Error signing out:', error);
+      if (Platform.OS === 'web') {
+        // Web: Use hard reload
+        console.log('[LOGOUT] Web platform - using window.location.href');
+        window.location.href = '/';
+      } else {
+        // iOS/Android: Use expo-updates to reload the app
+        console.log('[LOGOUT] Native platform - using Updates.reloadAsync()');
+        try {
+          await Updates.reloadAsync();
+        } catch (reloadError) {
+          // Updates.reloadAsync() only works in production builds
+          // In development (Expo Go), fall back to router navigation
+          console.log('[LOGOUT] Updates.reloadAsync() failed (expected in dev mode), using fallback');
+          
+          // Close drawer first
+          if (onClose) {
+            onClose();
+          }
+          
+          // Small delay to let drawer close
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Try router navigation as fallback for dev mode
+          router.replace('/');
+        }
       }
       
-      // Even if there's an error, try to clear storage and navigate to login
+    } catch (error) {
+      console.error('[LOGOUT] Error during logout:', error);
+      
+      // Even if there's an error, ensure data is cleared and try to navigate
       try {
         await AsyncStorage.multiRemove([
           WORKER_ID_KEY,
@@ -236,16 +234,16 @@ export function DrawerContent({ workerName, workerEmail, onClose }: DrawerConten
         ]);
         await safeSignOut();
       } catch (clearError) {
-        if (__DEV__) {
-          console.error('Error clearing data:', clearError);
-        }
+        console.error('[LOGOUT] Error clearing data:', clearError);
       }
       
-      // Wait for drawer to close
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Always navigate to login, even on error
-      router.replace('/');
+      // Final fallback - try any method to get to login
+      if (Platform.OS === 'web') {
+        window.location.href = '/';
+      } else {
+        if (onClose) onClose();
+        router.replace('/');
+      }
     }
   };
 

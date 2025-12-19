@@ -12,6 +12,8 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const LOG_ENDPOINT = 'http://127.0.0.1:7245/ingest/c98471a6-af32-4b65-a31e-5e03b45eea79';
 import { Drawer } from '@/components/Drawer';
 import { CalendarPicker } from '@/components/CalendarPicker';
 import { useWorkerSchedules } from '@/hooks/useWorkerSchedules';
@@ -205,6 +207,21 @@ export default function ScheduleHomeScreen() {
     refetch();
   };
 
+  // CRITICAL: This handler runs OUTSIDE the Modal context, so navigation works!
+  const handleLogout = () => {
+    console.log('[SCHEDULE_HOME] handleLogout called - navigating OUTSIDE Modal');
+    // #region agent log
+    fetch(LOG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/(tabs)/index.tsx:handleLogout',message:'LOGOUT_NAVIGATE_OUTSIDE_MODAL',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    
+    // Close drawer first
+    setDrawerVisible(false);
+    
+    // Navigate to login - this runs OUTSIDE the Modal, so it should work
+    router.replace('/');
+    console.log('[SCHEDULE_HOME] router.replace(/) called from OUTSIDE Modal');
+  };
+
   return (
     <LinearGradient
       colors={['#E6F4FE', '#F0F8FF']}
@@ -352,6 +369,7 @@ export default function ScheduleHomeScreen() {
       <Drawer
         visible={drawerVisible}
         onClose={() => setDrawerVisible(false)}
+        onLogout={handleLogout}
         workerName={workerName}
         workerEmail={workerEmail}
       />

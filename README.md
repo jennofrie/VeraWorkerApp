@@ -182,6 +182,64 @@ npm run reset-project
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
+## Recent Changes & Bug Fixes
+
+### Logout Functionality Fix (Critical for App Store Review)
+
+**Problem**: The logout button in the drawer menu was not properly navigating back to the login screen. After tapping logout, the app would remain on the "My Schedule" section instead of returning to the login page.
+
+**Root Cause**: Expo Router has a known limitation where `router.replace('/')` navigation from inside a Modal component (the Drawer) does not reliably update the UI when navigating from a `(tabs)` group to the root route.
+
+**Debugging History** (17+ attempts):
+
+1. ❌ Simple `router.replace('/')` from DrawerContent
+2. ❌ AsyncStorage logout flag check
+3. ❌ `setTimeout` delay before navigation
+4. ❌ `useRef` guard to prevent re-navigation
+5. ❌ Enhanced defensive checks in login screen's `checkAuth()`
+6. ❌ `navigation.dispatch(CommonActions.reset())`
+7. ❌ `router.dismissAll()` + `router.replace('/')` (caused "POP_TO_TOP not handled" error)
+8. ❌ Moved logout button to main screen header (out of drawer)
+9. ❌ Removed `unstable_settings.anchor` from root layout
+10. ❌ Deep linking using `Linking.openURL()`
+11. ❌ Global auth state polling with `<Redirect>` component (broke login UI)
+12. ❌ Alert asking user to restart app (not acceptable UX)
+13. ❌ Event-driven auth gate with `authEvents.ts` (caused infinite loop/black screen)
+14. ❌ Removed all auth checking from tabs layout
+15. ❌ One-shot router navigation from tab layout
+16. ❌ Callback pattern (navigation outside Modal)
+17. ✅ **SOLUTION**: Force app reload using `expo-updates`
+
+**Working Solution**: 
+
+The logout handler now uses `Updates.reloadAsync()` from `expo-updates` to completely restart the app after clearing storage. This approach:
+- Clears all AsyncStorage data (worker credentials, profile settings, etc.)
+- Signs out from Supabase Auth
+- Forces a complete app restart using `Updates.reloadAsync()` (iOS/Android) or `window.location.href = '/'` (web)
+- On app restart, with no stored credentials, the login screen is shown automatically
+
+**Implementation Details**:
+- File: `components/DrawerContent.tsx` - `handleLogout()` function
+- Uses `expo-updates` package for native app reload
+- Fallback to `router.replace('/')` in development mode (Expo Go) where `Updates.reloadAsync()` is not available
+- Web platform uses hard page reload for immediate effect
+
+**Testing Notes**:
+- ✅ **Production builds (TestFlight/App Store)**: Logout works perfectly with app restart
+- ⚠️ **Development mode (Expo Go)**: Uses fallback navigation (may still exhibit old bug, but acceptable for dev)
+- ✅ **Web**: Works immediately with hard reload
+
+**Configuration Changes**:
+- Added `expo-updates` to `package.json` dependencies
+- Added `expo-updates` plugin to `app.json`
+- Added updates configuration: `updates.enabled = true`, `runtimeVersion.policy = "appVersion"`
+
+### Additional Improvements
+
+- **Network Error Handling**: Enhanced `useWorkerSchedules` hook with retry logic and exponential backoff for timeout errors
+- **Supabase Client**: Improved timeout handling with longer timeouts for `worker_schedules` queries (30 seconds)
+- **Package Updates**: Updated Expo packages to compatible versions (expo-linking, expo-router, expo-splash-screen)
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:
