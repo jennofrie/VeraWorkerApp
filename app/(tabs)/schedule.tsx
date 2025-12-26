@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: 'center',
   },
-  weekRangeText: {
+  weekRangeModalText: {
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600',

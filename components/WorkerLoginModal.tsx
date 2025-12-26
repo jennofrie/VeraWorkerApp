@@ -294,6 +294,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  inputContainer: {
+    marginBottom: 8,
+  },
   errorContainer: {
     backgroundColor: 'rgba(255, 87, 87, 0.2)',
     borderRadius: 12,

@@ -168,22 +168,8 @@ export default function ScheduleHomeScreen() {
     });
   };
 
-  const handleDeleteShift = (shiftId: string) => {
-    Alert.alert(
-      'Delete Shift',
-      'Are you sure you want to delete this shift?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setClientShifts(prev => prev.filter(shift => shift.id !== shiftId));
-          },
-        },
-      ]
-    );
-  };
+  // Note: Delete functionality removed as shifts are now fetched from database
+  // Delete would require a database operation which should be admin-only
 
   const handleShiftPress = (shift: ClientShift) => {
     router.push({
@@ -329,15 +315,6 @@ export default function ScheduleHomeScreen() {
                                 {shift.status === 'IN_PROGRESS' ? 'STARTED' : shift.status}
                               </ThemedText>
                             </View>
-                            <TouchableOpacity
-                              style={styles.deleteButton}
-                              onPress={(e) => {
-                                e.stopPropagation();
-                                handleDeleteShift(shift.id);
-                              }}
-                            >
-                              <IconSymbol name="trash" size={16} color="#FF6B6B" weight="regular" />
-                            </TouchableOpacity>
                           </View>
                         </View>
                         <View style={styles.shiftClientInfo}>

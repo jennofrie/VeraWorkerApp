@@ -353,34 +353,21 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
         { maxRetries: 2, initialDelay: 500 }
       );
 
-      const { data: workerData, error: workerError } = workerResult;
+      const { data: workerData } = workerResult;
 
-      if (workerError || !workerData) {
+      if (!workerData) {
         if (__DEV__) {
-          console.error('Worker verification error:', workerError);
+          console.error('Worker verification failed: no worker data returned');
         }
-        
-        if (workerError?.code === 'PGRST301' || workerError?.message?.includes('permission denied') || workerError?.message?.includes('403')) {
-          Alert.alert(
-            'Permission Error',
-            'Unable to verify worker account. Please check your RLS policies in Supabase.',
-            [
-              { text: 'OK', onPress: () => {
-                router.replace('/');
-              }}
-            ]
-          );
-        } else {
-          Alert.alert(
-            'Worker Not Found',
-            'Your worker account was not found in the database. Please login again.',
-            [
-              { text: 'OK', onPress: () => {
-                router.replace('/');
-              }}
-            ]
-          );
-        }
+        Alert.alert(
+          'Worker Not Found',
+          'Your worker account was not found in the database. Please login again.',
+          [
+            { text: 'OK', onPress: () => {
+              router.replace('/');
+            }}
+          ]
+        );
         return;
       }
 
@@ -448,32 +435,7 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
         }
       );
 
-      const { data, error } = shiftResult;
-
-      if (error) {
-        if (__DEV__) {
-          console.error('Supabase error details:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-          });
-        }
-        
-        let errorMessage: string;
-        if (error.code === '23503' || error.message?.includes('foreign key')) {
-          errorMessage = 'Database configuration error. Please contact support.';
-        } else if (isNetworkError(error)) {
-          errorMessage = getNetworkErrorMessage(error);
-        } else if (isSupabaseError(error)) {
-          errorMessage = error.details || error.hint || error.message || 'Database error. Please try again.';
-        } else {
-          errorMessage = error.message || 'Failed to clock in. Please try again.';
-        }
-        
-        Alert.alert('Clock In Failed', errorMessage);
-        return;
-      }
+      const { data } = shiftResult;
 
       if (data) {
         setCurrentShiftId(data.id);
@@ -571,31 +533,6 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
           shouldRetry: (err) => isNetworkError(err) || (err?.code && ['08000', '08003', '08006', '08001'].includes(err.code)),
         }
       );
-
-      const { error } = updateResult;
-
-      if (error) {
-        if (__DEV__) {
-          console.error('Supabase error details:', {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            hint: error.hint,
-          });
-        }
-        
-        let errorMessage: string;
-        if (isNetworkError(error)) {
-          errorMessage = getNetworkErrorMessage(error);
-        } else if (isSupabaseError(error)) {
-          errorMessage = error.details || error.hint || error.message || 'Database error. Please try again.';
-        } else {
-          errorMessage = error.message || 'Failed to clock out. Please try again.';
-        }
-        
-        Alert.alert('Clock Out Failed', errorMessage);
-        return;
-      }
 
       // Sign out from Supabase Auth
       try {

@@ -27,6 +27,12 @@ export default function AboutScreen() {
   const [workerEmail, setWorkerEmail] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Logout handler - runs outside Modal context for proper navigation
+  const handleLogout = () => {
+    setDrawerVisible(false);
+    router.replace('/');
+  };
+
   React.useEffect(() => {
     const loadWorkerInfo = async () => {
       try {
@@ -234,6 +240,7 @@ export default function AboutScreen() {
         <Drawer
           visible={drawerVisible}
           onClose={() => setDrawerVisible(false)}
+          onLogout={handleLogout}
           workerName={workerName}
           workerEmail={workerEmail}
         />

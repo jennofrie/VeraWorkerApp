@@ -5,30 +5,45 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
-  Modal,
-  TextInput,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface Document {
-  id: string;
-  name: string;
-  type: string;
-  uploadDate: string;
-}
+import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import { useWorkerDocuments } from '@/hooks/useWorkerDocuments';
 
 export default function MyDocumentsScreen() {
+  const router = useRouter();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [workerName, setWorkerName] = useState<string | null>(null);
   const [workerEmail, setWorkerEmail] = useState<string | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState('All');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewingDocument, setViewingDocument] = useState(false);
+
+  // Logout handler - runs outside Modal context for proper navigation
+  const handleLogout = () => {
+    setDrawerVisible(false);
+    router.replace('/');
+  };
+
+  const {
+    documents,
+    loading,
+    error,
+    documentCount,
+    uploading,
+    canUploadMore,
+    maxDocuments,
+    uploadDocument,
+    getDocumentUrl,
+    refreshDocuments,
+  } = useWorkerDocuments();
 
   React.useEffect(() => {
     const loadWorkerInfo = async () => {
@@ -46,18 +61,72 @@ export default function MyDocumentsScreen() {
     loadWorkerInfo();
   }, []);
 
-  const documentTypes = ['All', 'ID', 'Certificate', 'License', 'Other'];
+  // Handle document upload
+  const handleAddDocument = async () => {
+    if (!canUploadMore) {
+      Alert.alert(
+        'Limit Reached',
+        `You have reached the maximum limit of ${maxDocuments} documents. Please delete a document to upload a new one.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
-  const filteredDocuments = selectedFilter === 'All' 
-    ? documents 
-    : documents.filter(doc => doc.type === selectedFilter);
+    const result = await uploadDocument();
+    if (result.success) {
+      Alert.alert('Success', 'Document uploaded successfully!');
+    } else {
+      Alert.alert('Upload Failed', result.error || 'Could not upload document');
+    }
+  };
 
-  const handleAddDocument = () => {
-    Alert.alert(
-      'Upload Document',
-      'Document uploads are managed through your organisation. Please contact your supervisor to upload documents.',
-      [{ text: 'OK' }]
-    );
+  // Handle document view - opens in-app browser for reliable PDF viewing
+  const handleViewDocument = async (storagePath: string) => {
+    if (viewingDocument) return; // Prevent double-tap
+    
+    try {
+      setViewingDocument(true);
+      const url = await getDocumentUrl(storagePath);
+      if (url) {
+        // Open in in-app browser - works reliably with PDFs and signed URLs
+        await WebBrowser.openBrowserAsync(url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          controlsColor: '#5B9BD5',
+          toolbarColor: '#E6F4FE',
+        });
+      } else {
+        Alert.alert('Error', 'Could not generate document URL');
+      }
+    } catch (err) {
+      console.error('Error viewing document:', err);
+      Alert.alert('Error', 'Failed to open document. Please try again.');
+    } finally {
+      setViewingDocument(false);
+    }
+  };
+
+  // Handle pull-to-refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refreshDocuments();
+    setRefreshing(false);
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
+
+  // Format date
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   return (
@@ -70,77 +139,136 @@ export default function MyDocumentsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.menuButton}
             onPress={() => setDrawerVisible(true)}
           >
             <IconSymbol name="line.3.horizontal" size={24} color="#1F1D2B" weight="regular" />
           </TouchableOpacity>
           <ThemedText type="title" style={styles.headerTitle}>
-            My Document
+            My Documents
           </ThemedText>
           <View style={styles.headerSpacer} />
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Document Type Filter */}
-          <View style={styles.filterSection}>
-            <ThemedText style={styles.filterLabel}>Document type</ThemedText>
-            <View style={styles.filterContainer}>
-              <TouchableOpacity
-                style={styles.filterDropdown}
-                onPress={() => {
-                  // Show filter options - simplified for now
-                  Alert.alert('Filter', 'Select document type', [
-                    ...documentTypes.map(type => ({
-                      text: type,
-                      onPress: () => setSelectedFilter(type),
-                    })),
-                    { text: 'Cancel', style: 'cancel' },
-                  ]);
-                }}
-              >
-                <ThemedText style={styles.filterText}>{selectedFilter}</ThemedText>
-                <IconSymbol name="chevron.down" size={16} color="#666" weight="regular" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Documents List */}
-          {filteredDocuments.length > 0 ? (
-            <View style={styles.documentsList}>
-              {filteredDocuments.map((doc) => (
-                <View key={doc.id} style={styles.documentCard}>
-                  <IconSymbol name="doc.fill" size={24} color="#5B9BD5" weight="regular" />
-                  <View style={styles.documentInfo}>
-                    <ThemedText style={styles.documentName}>{doc.name}</ThemedText>
-                    <ThemedText style={styles.documentDate}>{doc.uploadDate}</ThemedText>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <ThemedText style={styles.emptyText}>No documents found</ThemedText>
-            </View>
+        {/* Document Counter */}
+        <View style={styles.counterSection}>
+          <ThemedText style={styles.counterText}>
+            {documentCount} of {maxDocuments} documents uploaded
+          </ThemedText>
+          {!canUploadMore && (
+            <ThemedText style={styles.warningText}>
+              Maximum limit reached
+            </ThemedText>
           )}
-        </ScrollView>
+        </View>
+
+        {/* Error message */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#E53935" weight="regular" />
+            <ThemedText style={styles.errorText}>{error}</ThemedText>
+          </View>
+        )}
+
+        {/* Documents List */}
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#5B9BD5" />
+            <ThemedText style={styles.loadingText}>Loading documents...</ThemedText>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#5B9BD5"
+              />
+            }
+          >
+            {documents.length > 0 ? (
+              <View style={styles.documentsList}>
+                {documents.map((doc) => (
+                  <View key={doc.id} style={styles.documentCard}>
+                    <IconSymbol
+                      name={doc.file_type.includes('pdf') ? 'doc.text.fill' : 'doc.fill'}
+                      size={32}
+                      color={doc.file_type.includes('pdf') ? '#E53935' : '#2196F3'}
+                      weight="regular"
+                    />
+                    <View style={styles.documentInfo}>
+                      <ThemedText style={styles.documentName} numberOfLines={1}>
+                        {doc.document_title || doc.file_name}
+                      </ThemedText>
+                      <ThemedText style={styles.documentMeta}>
+                        {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                      </ThemedText>
+                      {doc.document_description && (
+                        <ThemedText style={styles.documentDescription} numberOfLines={2}>
+                          {doc.document_description}
+                        </ThemedText>
+                      )}
+                    </View>
+                    <View style={styles.documentActions}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, viewingDocument && styles.actionButtonDisabled]}
+                        onPress={() => handleViewDocument(doc.storage_path)}
+                        disabled={viewingDocument}
+                      >
+                        {viewingDocument ? (
+                          <ActivityIndicator size="small" color="#2196F3" />
+                        ) : (
+                          <IconSymbol name="eye.fill" size={20} color="#2196F3" weight="regular" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <IconSymbol name="doc.text" size={80} color="#BDBDBD" weight="regular" />
+                <ThemedText style={styles.emptyTitle}>No Documents Yet</ThemedText>
+                <ThemedText style={styles.emptyText}>
+                  Upload your first document by tapping the button below
+                </ThemedText>
+              </View>
+            )}
+          </ScrollView>
+        )}
 
         {/* Add New Document Button */}
         <TouchableOpacity
-          style={styles.addButton}
+          style={[
+            styles.addButton,
+            (!canUploadMore || uploading) && styles.addButtonDisabled,
+          ]}
           onPress={handleAddDocument}
+          disabled={!canUploadMore || uploading}
         >
-          <ThemedText style={styles.addButtonText}>Add New Document</ThemedText>
+          {uploading ? (
+            <>
+              <ActivityIndicator color="#1F1D2B" size="small" style={{ marginRight: 8 }} />
+              <ThemedText style={styles.addButtonText}>Uploading...</ThemedText>
+            </>
+          ) : (
+            <ThemedText style={[
+              styles.addButtonText,
+              !canUploadMore && styles.addButtonTextDisabled,
+            ]}>
+              {canUploadMore ? 'Add New Document' : 'Limit Reached'}
+            </ThemedText>
+          )}
         </TouchableOpacity>
 
         <Drawer
           visible={drawerVisible}
           onClose={() => setDrawerVisible(false)}
+          onLogout={handleLogout}
           workerName={workerName}
           workerEmail={workerEmail}
         />
@@ -180,37 +308,57 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 40,
   },
+  counterSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#E3F2FD',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+  },
+  counterText: {
+    fontSize: 14,
+    color: '#1565C0',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#E53935',
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEE',
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#C62828',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#757575',
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingBottom: 100,
-  },
-  filterSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-  },
-  filterContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  filterDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-  },
-  filterText: {
-    fontSize: 16,
-    color: '#1F1D2B',
   },
   documentsList: {
     paddingHorizontal: 20,
@@ -238,9 +386,31 @@ const styles = StyleSheet.create({
     color: '#1F1D2B',
     marginBottom: 4,
   },
-  documentDate: {
-    fontSize: 14,
-    color: '#999',
+  documentMeta: {
+    fontSize: 12,
+    color: '#757575',
+    marginBottom: 4,
+  },
+  documentDescription: {
+    fontSize: 12,
+    color: '#9E9E9E',
+    fontStyle: 'italic',
+  },
+  documentActions: {
+    flexDirection: 'column',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  actionButtonDisabled: {
+    opacity: 0.6,
   },
   emptyState: {
     flex: 1,
@@ -248,28 +418,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 60,
   },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#424242',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#757575',
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
   addButton: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 30 : 20,
     left: 20,
     right: 20,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#5B9BD5',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
+  addButtonDisabled: {
+    backgroundColor: '#BDBDBD',
+    opacity: 0.6,
+  },
   addButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F1D2B',
+    color: '#FFFFFF',
+  },
+  addButtonTextDisabled: {
+    color: '#757575',
   },
 });

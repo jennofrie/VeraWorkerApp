@@ -49,6 +49,12 @@ export default function ClientDetailScreen() {
   const latitude = params.latitude ? parseFloat(params.latitude as string) : -33.8825;
   const longitude = params.longitude ? parseFloat(params.longitude as string) : 151.1986;
 
+  // Logout handler - runs outside Modal context for proper navigation
+  const handleLogout = () => {
+    setDrawerVisible(false);
+    router.replace('/');
+  };
+
   // Determine current status
   const currentStatus: 'BOOKED' | 'STARTED' | 'COMPLETED' = schedule?.status || 'BOOKED';
   const isClockedIn = currentStatus === 'STARTED';
@@ -327,7 +333,7 @@ export default function ClientDetailScreen() {
         await AsyncStorage.removeItem('@veralink:currentScheduleId');
         
         // Redirect back to schedule list
-        router.replace('/(tabs)/');
+        router.replace('/');
       }
     } catch (error: any) {
       if (__DEV__) {
@@ -557,6 +563,7 @@ export default function ClientDetailScreen() {
         <Drawer
           visible={drawerVisible}
           onClose={() => setDrawerVisible(false)}
+          onLogout={handleLogout}
           workerName={workerName}
           workerEmail={workerEmail}
         />
@@ -752,7 +759,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 56,
   },
-  clockInButton: {
+  clockInActionButton: {
     backgroundColor: '#00D4AA',
   },
   clockOutButton: {

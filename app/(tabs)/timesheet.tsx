@@ -15,7 +15,7 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTimesheets, Timesheet } from '@/hooks/useTimesheets';
 import { formatDateForQuery, getWeekStart, getWeekEnd, formatScheduleTime, getMonthName, getDayName } from '@/lib/utils/dateFormat';
 
@@ -39,6 +39,7 @@ interface WeekGroup {
 }
 
 export default function TimesheetScreen() {
+  const router = useRouter();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();
     const day = today.getDay();
@@ -50,6 +51,12 @@ export default function TimesheetScreen() {
   });
   const [showWeekPicker, setShowWeekPicker] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+
+  // Logout handler - runs outside Modal context for proper navigation
+  const handleLogout = () => {
+    setDrawerVisible(false);
+    router.replace('/');
+  };
   const [workerName, setWorkerName] = useState<string | null>(null);
   const [workerEmail, setWorkerEmail] = useState<string | null>(null);
   const [workerId, setWorkerId] = useState<string | null>(null);
@@ -679,6 +686,7 @@ export default function TimesheetScreen() {
       <Drawer
         visible={drawerVisible}
         onClose={() => setDrawerVisible(false)}
+        onLogout={handleLogout}
         workerName={workerName}
         workerEmail={workerEmail}
       />
@@ -954,6 +962,11 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
     alignItems: 'center',
+  },
+  weekRangeText: {
+    fontSize: 16,
+    color: '#1F1D2B',
+    fontWeight: '600',
   },
   dateNavigationContainer: {
     flexDirection: 'row',

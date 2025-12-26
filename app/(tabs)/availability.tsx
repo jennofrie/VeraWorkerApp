@@ -14,6 +14,7 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 interface AvailabilitySlot {
   id: string;
@@ -23,6 +24,7 @@ interface AvailabilitySlot {
 }
 
 export default function AvailabilityScreen() {
+  const router = useRouter();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [workerName, setWorkerName] = useState<string | null>(null);
   const [workerEmail, setWorkerEmail] = useState<string | null>(null);
@@ -31,6 +33,12 @@ export default function AvailabilityScreen() {
   const [selectedDay, setSelectedDay] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+
+  // Logout handler - runs outside Modal context for proper navigation
+  const handleLogout = () => {
+    setDrawerVisible(false);
+    router.replace('/');
+  };
 
   React.useEffect(() => {
     const loadWorkerInfo = async () => {
@@ -204,6 +212,7 @@ export default function AvailabilityScreen() {
         <Drawer
           visible={drawerVisible}
           onClose={() => setDrawerVisible(false)}
+          onLogout={handleLogout}
           workerName={workerName}
           workerEmail={workerEmail}
         />

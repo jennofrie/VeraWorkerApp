@@ -11,11 +11,19 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 export default function DocumentHubScreen() {
+  const router = useRouter();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [workerName, setWorkerName] = useState<string | null>(null);
   const [workerEmail, setWorkerEmail] = useState<string | null>(null);
+
+  // Logout handler - runs outside Modal context for proper navigation
+  const handleLogout = () => {
+    setDrawerVisible(false);
+    router.replace('/');
+  };
 
   React.useEffect(() => {
     const loadWorkerInfo = async () => {
@@ -62,6 +70,7 @@ export default function DocumentHubScreen() {
         <Drawer
           visible={drawerVisible}
           onClose={() => setDrawerVisible(false)}
+          onLogout={handleLogout}
           workerName={workerName}
           workerEmail={workerEmail}
         />
