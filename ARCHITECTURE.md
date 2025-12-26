@@ -183,6 +183,7 @@ VeraWorkerApp/
 │   ├── useWorkerSchedules.ts    # Fetch worker schedules from Supabase
 │   ├── useWorkerShifts.ts      # Fetch worker shifts from Supabase
 │   ├── useTimesheets.ts        # Fetch timesheets from Supabase
+│   ├── useWorkerDocuments.ts   # Document management (upload, fetch, delete)
 │   └── [theme/color hooks]     # Theme and color scheme hooks
 │
 ├── lib/                          # Core libraries and utilities
@@ -206,6 +207,7 @@ VeraWorkerApp/
 │   ├── FIX_RLS_POLICIES.sql     # RLS policy setup for workers
 │   ├── SETUP_WORKER_SCHEDULES_RLS.sql  # RLS for schedules
 │   ├── FIX_SHIFTS_RLS.sql       # RLS for shifts
+│   ├── CREATE_WORKER_DOCUMENTS.sql  # Document management schema + RLS
 │   └── [other migration scripts]
 │
 ├── MarkDown/                     # Documentation files
@@ -420,6 +422,19 @@ graph TB
 - `created_at` (TIMESTAMPTZ): Record creation timestamp
 - `updated_at` (TIMESTAMPTZ): Record update timestamp
 
+#### `worker_documents`
+- `id` (UUID, PRIMARY KEY): Document unique identifier
+- `worker_id` (UUID, NOT NULL, FOREIGN KEY): References workers(id) ON DELETE CASCADE
+- `file_name` (TEXT, NOT NULL): Original filename
+- `file_type` (TEXT, NOT NULL): MIME type (e.g., application/pdf)
+- `file_size` (BIGINT, NOT NULL): File size in bytes
+- `storage_path` (TEXT, NOT NULL, UNIQUE): Path in Supabase Storage bucket
+- `document_title` (TEXT): Optional custom title
+- `document_description` (TEXT): Optional description
+- `uploaded_by` (UUID, FOREIGN KEY): References auth.users(id)
+- `created_at` (TIMESTAMPTZ): Record creation timestamp
+- `updated_at` (TIMESTAMPTZ): Record update timestamp
+
 ## Security Model
 
 ### Row-Level Security (RLS)
@@ -437,6 +452,11 @@ All tables have RLS enabled to ensure data isolation between workers.
 
 #### Worker Schedules Table Policies
 1. **Workers can read their own schedules**: `worker_belongs_to_user(worker_id)`
+
+#### Worker Documents Table Policies
+1. **Workers can read their own documents**: `worker_belongs_to_user(worker_id)`
+2. **Workers can insert their own documents**: `worker_belongs_to_user(worker_id)`
+3. **Workers can delete their own documents**: `worker_belongs_to_user(worker_id)`
 
 ### Security Functions
 
@@ -703,6 +723,9 @@ eas build --profile production --platform all
 - `@react-native-async-storage/async-storage`: Local storage (2.2.0)
 - `expo-location`: GPS location service (~19.0.8)
 - `expo-updates`: OTA updates (~29.0.15)
+- `expo-file-system`: File system operations (~19.0.21)
+- `expo-document-picker`: Document selection (~14.0.8)
+- `expo-web-browser`: In-app browser for document viewing (~15.0.10)
 
 ### UI Dependencies
 - `expo-linear-gradient`: Gradient backgrounds (~15.0.8)
@@ -947,6 +970,95 @@ watchman watch-del-all                 # Clear watchman cache (macOS)
 
 ---
 
+## Document Management System
+
+### Overview
+Workers can upload and manage documents (PDF and Word files) through the `My Documents` screen. Documents are stored in Supabase Storage with metadata tracked in the `worker_documents` table.
+
+### Key Components
+- **`hooks/useWorkerDocuments.ts`**: Custom hook for document CRUD operations
+- **`app/(tabs)/my-documents.tsx`**: UI screen for document management
+- **`SQL/CREATE_WORKER_DOCUMENTS.sql`**: Database schema and RLS policies
+
+### Document Upload Flow
+
+```mermaid
+sequenceDiagram
+    participant Worker
+    participant MyDocumentsScreen
+    participant DocumentPicker
+    participant ExpoFileSystem
+    participant SupabaseStorage
+    participant Database
+
+    Worker->>MyDocumentsScreen: Tap "Add New Document"
+    MyDocumentsScreen->>DocumentPicker: getDocumentAsync()
+    DocumentPicker-->>MyDocumentsScreen: File URI + metadata
+    MyDocumentsScreen->>ExpoFileSystem: Read file as base64
+    ExpoFileSystem-->>MyDocumentsScreen: Base64 content
+    MyDocumentsScreen->>MyDocumentsScreen: Convert base64 to Blob
+    MyDocumentsScreen->>SupabaseStorage: Upload blob to worker-documents bucket
+    SupabaseStorage-->>MyDocumentsScreen: Upload success
+    MyDocumentsScreen->>Database: Insert metadata to worker_documents
+    Database-->>MyDocumentsScreen: Document record created
+    MyDocumentsScreen->>Worker: Show success message
+```
+
+### Critical Implementation Details
+
+#### File Reading (iOS/Android)
+**Problem**: Using `fetch(file.uri)` on `file://` URIs in React Native results in 0-byte blobs on iOS.
+
+**Solution**: Use `expo-file-system` File class to read files reliably:
+```typescript
+// ✅ CORRECT - Reliable file reading
+const expoFile = new ExpoFile(file.uri);
+const base64Content = await expoFile.base64();
+const binaryString = atob(base64Content);
+const bytes = new Uint8Array(binaryString.length);
+for (let i = 0; i < binaryString.length; i++) {
+  bytes[i] = binaryString.charCodeAt(i);
+}
+const blob = new Blob([bytes], { type: file.mimeType });
+```
+
+#### Storage Structure
+- **Bucket**: `worker-documents` (private bucket)
+- **Path Pattern**: `{worker_id}/document-{timestamp}-{random}.{ext}`
+- **MIME Types**: `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+- **Size Limit**: 10MB per file
+- **Max Documents**: 10 per worker
+
+#### Database Schema
+```sql
+CREATE TABLE worker_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_type TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
+  storage_path TEXT NOT NULL UNIQUE,
+  document_title TEXT,
+  document_description TEXT,
+  uploaded_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### RLS Policies
+- **Workers can read their own documents**: `worker_belongs_to_user(worker_id)`
+- **Workers can insert their own documents**: `worker_belongs_to_user(worker_id)`
+- **Workers can delete their own documents**: `worker_belongs_to_user(worker_id)`
+
+#### Storage RLS Policies
+- **Workers can upload to their own folder**: Folder name must match worker ID
+- **Workers can read from their own folder**: Folder name must match worker ID
+- **Workers can delete from their own folder**: Folder name must match worker ID
+
+### Document Viewing
+Documents are viewed using `expo-web-browser` which opens signed URLs in an in-app browser. This approach is more reliable than WebView for PDFs and signed URLs in Expo Go.
+
 **Last Updated**: 2025-12-26  
-**Version**: 1.0.0
+**Version**: 1.1.0
 
