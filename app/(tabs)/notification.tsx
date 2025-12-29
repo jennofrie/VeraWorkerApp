@@ -156,7 +156,7 @@ export default function NotificationScreen() {
                 No Notifications
               </ThemedText>
               <ThemedText style={styles.emptyMessage}>
-                You're all caught up! Check back later for updates about your shifts and schedule.
+                You&apos;re all caught up! Check back later for updates about your shifts and schedule.
               </ThemedText>
             </View>
           ) : (

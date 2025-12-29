@@ -13,13 +13,13 @@ import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
 import { Drawer } from '@/components/Drawer';
 import { LocationMap } from '@/components/LocationMap';
 import { ShiftNotesModal } from '@/components/ShiftNotesModal';
 import { SuccessModal } from '@/components/SuccessModal';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { WorkerSchedule } from '@/types/schedule';
+import { getCurrentLocationWithPermission } from '@/lib/utils/location';
 
 const WORKER_ID_KEY = '@veralink:workerId';
 
@@ -57,7 +57,6 @@ export default function ClientDetailScreen() {
 
   // Determine current status
   const currentStatus: 'BOOKED' | 'STARTED' | 'COMPLETED' = schedule?.status || 'BOOKED';
-  const isClockedIn = currentStatus === 'STARTED';
 
   // Format date
   const formattedDate = React.useMemo(() => {
@@ -124,78 +123,6 @@ export default function ClientDetailScreen() {
     loadData();
   }, [scheduleId]);
 
-  // Get current location helper
-  const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
-    if (Platform.OS === 'web') {
-      return null;
-    }
-
-    try {
-      if (!Location || typeof Location.getCurrentPositionAsync !== 'function') {
-        return null;
-      }
-
-      const enabled = await Location.hasServicesEnabledAsync();
-      if (!enabled) {
-        return null;
-      }
-
-      let permissionStatus;
-      try {
-        permissionStatus = await Location.getForegroundPermissionsAsync();
-      } catch (permError) {
-        return null;
-      }
-
-      let { status } = permissionStatus;
-      if (status === 'denied') {
-        return null;
-      }
-
-      if (status !== 'granted') {
-        try {
-          const permissionResponse = await Location.requestForegroundPermissionsAsync();
-          status = permissionResponse.status;
-          if (status !== 'granted') {
-            return null;
-          }
-        } catch (requestError) {
-          return null;
-        }
-      }
-
-      try {
-        const location = await Promise.race([
-          Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 5000,
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Location request timeout')), 8000)
-          )
-        ]) as Location.LocationObject;
-
-        if (!location?.coords) return null;
-
-        const { latitude, longitude } = location.coords;
-        if (
-          typeof latitude !== 'number' ||
-          typeof longitude !== 'number' ||
-          isNaN(latitude) ||
-          isNaN(longitude)
-        ) {
-          return null;
-        }
-
-        return { lat: latitude, lng: longitude };
-      } catch (locationError: any) {
-        return null;
-      }
-    } catch (error) {
-      return null;
-    }
-  };
-
   // Clock In handler - updates worker_schedules table
   const handleClockIn = async () => {
     if (!scheduleId) {
@@ -215,8 +142,30 @@ export default function ClientDetailScreen() {
 
     setIsProcessing(true);
     try {
-      // Get location
-      const location = await getCurrentLocation();
+      // Get location with proper permission handling and user feedback
+      const locationResult = await getCurrentLocationWithPermission({
+        timeout: 10000,
+        showAlerts: true,
+      });
+
+      // Log location capture status
+      if (__DEV__) {
+        if (locationResult.success) {
+          console.log('✅ Clock-in location captured:', locationResult.coords);
+        } else {
+          console.log('⚠️ Clock-in location not captured:', locationResult.error);
+        }
+      }
+
+      // Warn user if location not captured (but don't block clock-in)
+      if (!locationResult.success && !locationResult.permissionDenied) {
+        // Only show warning if not already showing permission alert
+        Alert.alert(
+          'Location Not Captured',
+          `Your location could not be recorded: ${locationResult.error}\n\nYou can still clock in, but location will not be recorded.`,
+          [{ text: 'Continue' }]
+        );
+      }
 
       // Update worker_schedules: set actual_start_time and status to 'STARTED'
       const updateData: any = {
@@ -224,6 +173,12 @@ export default function ClientDetailScreen() {
         status: 'STARTED',
         updated_at: new Date().toISOString(),
       };
+
+      // TODO: Add location columns to worker_schedules table if needed
+      // if (locationResult.success && locationResult.coords) {
+      //   updateData.clock_in_lat = locationResult.coords.latitude;
+      //   updateData.clock_in_lng = locationResult.coords.longitude;
+      // }
 
       const { data, error } = await supabase
         .from('worker_schedules')
@@ -248,8 +203,8 @@ export default function ClientDetailScreen() {
         setSchedule(data as WorkerSchedule);
         // Store schedule ID for tracking
         await AsyncStorage.setItem('@veralink:currentScheduleId', scheduleId);
-        
-        // Show success modal
+
+        // Show success modal with location confirmation
         setShowSuccessModal(true);
       }
     } catch (error: any) {
@@ -284,11 +239,34 @@ export default function ClientDetailScreen() {
 
     setIsProcessing(true);
     try {
-      // Get location
-      const location = await getCurrentLocation();
+      // Get location with proper permission handling and user feedback
+      const locationResult = await getCurrentLocationWithPermission({
+        timeout: 10000,
+        showAlerts: true,
+      });
+
+      // Log location capture status
+      if (__DEV__) {
+        if (locationResult.success) {
+          console.log('✅ Clock-out location captured:', locationResult.coords);
+        } else {
+          console.log('⚠️ Clock-out location not captured:', locationResult.error);
+        }
+      }
+
+      // Warn user if location not captured (but don't block clock-out)
+      if (!locationResult.success && !locationResult.permissionDenied) {
+        // Only show warning if not already showing permission alert
+        Alert.alert(
+          'Location Not Captured',
+          `Your location could not be recorded: ${locationResult.error}\n\nYou can still clock out, but location will not be recorded.`,
+          [{ text: 'Continue' }]
+        );
+      }
 
       // Calculate duration if we have actual_start_time
-      let durationFormatted = null;
+      // TODO: Add shift_duration column to worker_schedules table if needed
+      let _durationFormatted = null;
       if (schedule?.actual_start_time) {
         const startTime = new Date(schedule.actual_start_time);
         const endTime = new Date();
@@ -297,7 +275,7 @@ export default function ClientDetailScreen() {
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
-        durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        _durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       }
 
       // Update worker_schedules: set actual_end_time, notes, status to 'COMPLETED'
@@ -307,6 +285,12 @@ export default function ClientDetailScreen() {
         status: 'COMPLETED',
         updated_at: new Date().toISOString(),
       };
+
+      // TODO: Add location columns to worker_schedules table if needed
+      // if (locationResult.success && locationResult.coords) {
+      //   updateData.clock_out_lat = locationResult.coords.latitude;
+      //   updateData.clock_out_lng = locationResult.coords.longitude;
+      // }
 
       const { data, error } = await supabase
         .from('worker_schedules')

@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { File as ExpoFile } from 'expo-file-system';
 
 // TypeScript interfaces
@@ -361,6 +362,87 @@ export function useWorkerDocuments() {
     }
   };
 
+  // Download document to local cache and return file URI (for native viewing)
+  const downloadDocumentToCache = async (
+    storagePath: string,
+    fileName: string
+  ): Promise<{ success: boolean; fileUri?: string; error?: string }> => {
+    try {
+      // Only available on native platforms (not web)
+      if (Platform.OS === 'web') {
+        return {
+          success: false,
+          error: 'Document download is not supported on web. Use getDocumentUrl instead.',
+        };
+      }
+
+      // Get signed URL first
+      const signedUrl = await getDocumentUrl(storagePath);
+      if (!signedUrl) {
+        return { success: false, error: 'Failed to generate download URL' };
+      }
+
+      // Create cache directory for documents if it doesn't exist
+      const cacheDir = `${FileSystem.cacheDirectory ?? ''}worker-documents/`;
+      const dirInfo = await FileSystem.getInfoAsync(cacheDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true });
+      }
+
+      // Sanitize filename (remove special characters, keep extension)
+      const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileUri = `${cacheDir}${sanitizedFileName}`;
+
+      console.log('📥 Downloading document to cache:', {
+        storagePath,
+        fileName: sanitizedFileName,
+        fileUri,
+      });
+
+      // Download file to cache
+      const downloadResult = await FileSystem.downloadAsync(signedUrl, fileUri);
+
+      if (downloadResult.status !== 200) {
+        console.error('❌ Download failed:', {
+          status: downloadResult.status,
+          uri: downloadResult.uri,
+        });
+        return {
+          success: false,
+          error: `Download failed with status ${downloadResult.status}`,
+        };
+      }
+
+      // Verify file was downloaded successfully
+      const fileInfo = await FileSystem.getInfoAsync(downloadResult.uri);
+      if (!fileInfo.exists) {
+        return { success: false, error: 'File download failed - file not found' };
+      }
+
+      // Check file size (should not be 0 bytes)
+      if ('size' in fileInfo && fileInfo.size === 0) {
+        console.error('⚠️ Downloaded file is empty (0 bytes)');
+        return {
+          success: false,
+          error: 'Downloaded file is empty. The file may be corrupted or was uploaded incorrectly.',
+        };
+      }
+
+      console.log('✅ Document downloaded successfully:', {
+        uri: downloadResult.uri,
+        size: 'size' in fileInfo ? fileInfo.size : 'unknown',
+      });
+
+      return { success: true, fileUri: downloadResult.uri };
+    } catch (err: any) {
+      console.error('Error downloading document:', err);
+      return {
+        success: false,
+        error: err.message || 'Failed to download document',
+      };
+    }
+  };
+
   // Check if can upload more documents
   const canUploadMore = documentCount < MAX_DOCUMENTS;
 
@@ -381,6 +463,7 @@ export function useWorkerDocuments() {
     deleteDocument,
     updateDocument,
     getDocumentUrl,
+    downloadDocumentToCache,
     refreshDocuments: fetchDocuments,
   };
 }

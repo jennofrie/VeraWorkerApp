@@ -22,9 +22,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { ShiftNotesModal } from '@/components/ShiftNotesModal';
 import { useRouter } from 'expo-router';
-import * as Location from 'expo-location';
-import { retryOperation, isNetworkError, isSupabaseError } from '@/lib/utils/retry';
+import { retryOperation, isNetworkError } from '@/lib/utils/retry';
 import { getNetworkErrorMessage } from '@/lib/utils/network';
+import { getCurrentLocationWithPermission } from '@/lib/utils/location';
 
 const BUTTON_SIZE = 250;
 const STORAGE_KEY = '@veralink:currentShiftId';
@@ -178,126 +178,6 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
     };
   }, []);
 
-  const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
-    if (Platform.OS === 'web') {
-      if (__DEV__) {
-        console.log('Location service not available on web platform');
-      }
-      return null;
-    }
-
-    try {
-      if (!Location || typeof Location.getCurrentPositionAsync !== 'function') {
-        if (__DEV__) {
-          console.log('Location service not available on this device');
-        }
-        return null;
-      }
-
-      const enabled = await Location.hasServicesEnabledAsync();
-      if (!enabled) {
-        if (__DEV__) {
-          console.log('Location services are disabled on this device');
-        }
-        return null;
-      }
-
-      let permissionStatus;
-      try {
-        permissionStatus = await Location.getForegroundPermissionsAsync();
-      } catch (permError) {
-        if (__DEV__) {
-          console.error('Error checking location permissions:', permError);
-        }
-        return null;
-      }
-
-      let { status } = permissionStatus;
-      
-      if (status === 'denied') {
-        if (__DEV__) {
-          console.log('Location permission permanently denied');
-        }
-        return null;
-      }
-
-      if (status !== 'granted') {
-        try {
-          const permissionResponse = await Location.requestForegroundPermissionsAsync();
-          status = permissionResponse.status;
-          
-          if (status !== 'granted') {
-            if (__DEV__) {
-              console.log('Location permission denied by user');
-            }
-            return null;
-          }
-        } catch (requestError) {
-          if (__DEV__) {
-            console.error('Error requesting location permission:', requestError);
-          }
-          return null;
-        }
-      }
-
-      try {
-        const location = await Promise.race([
-          Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 5000,
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Location request timeout')), 8000)
-          )
-        ]) as Location.LocationObject;
-
-        if (!location || !location.coords) {
-          if (__DEV__) {
-            console.log('Invalid location data received');
-          }
-          return null;
-        }
-
-        const { latitude, longitude } = location.coords;
-
-        if (
-          typeof latitude !== 'number' ||
-          typeof longitude !== 'number' ||
-          isNaN(latitude) ||
-          isNaN(longitude) ||
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          if (__DEV__) {
-            console.log('Invalid coordinates received:', { latitude, longitude });
-          }
-          return null;
-        }
-
-        return {
-          lat: latitude,
-          lng: longitude,
-        };
-      } catch (locationError: any) {
-        if (__DEV__) {
-          if (locationError.message === 'Location request timeout') {
-            console.log('Location request timed out after 8 seconds');
-          } else {
-            console.error('Error getting location:', locationError);
-          }
-        }
-        return null;
-      }
-    } catch (error: any) {
-      if (__DEV__) {
-        console.error('Unexpected error in getCurrentLocation:', error);
-      }
-      return null;
-    }
-  };
-
   const handleClockIn = async () => {
     if (!workerId) {
       Alert.alert('Login Required', 'Please login to start your shift');
@@ -390,7 +270,29 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
 
     setIsLoading(true);
     try {
-      const location = await getCurrentLocation();
+      // Get location with proper permission handling and user feedback
+      const locationResult = await getCurrentLocationWithPermission({
+        timeout: 10000,
+        showAlerts: true, // Will show alerts if permission denied
+      });
+
+      // If permission was denied, warn user but allow clock-in to proceed
+      // (Location is optional but recommended for NDIS compliance)
+      if (!locationResult.success) {
+        if (__DEV__) {
+          console.log('⚠️ Location not captured:', locationResult.error);
+        }
+
+        // If permission was permanently denied, we already showed Settings alert
+        // For other errors, show a warning but allow clock-in
+        if (!locationResult.permissionDenied) {
+          Alert.alert(
+            'Location Not Captured',
+            `Your location could not be recorded: ${locationResult.error}\n\nYou can still clock in, but location will not be recorded.`,
+            [{ text: 'Continue' }]
+          );
+        }
+      }
 
       const shiftResult = await retryOperation(
         async () => {
@@ -399,9 +301,10 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
             clock_in_time: new Date().toISOString(),
           };
 
-          if (location) {
-            shiftData.clock_in_lat = location.lat;
-            shiftData.clock_in_lng = location.lng;
+          // Only include location if successfully captured
+          if (locationResult.success && locationResult.coords) {
+            shiftData.clock_in_lat = locationResult.coords.latitude;
+            shiftData.clock_in_lng = locationResult.coords.longitude;
           }
 
           let result = await supabase
@@ -471,7 +374,16 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
 
     setIsLoading(true);
     try {
-      const location = await getCurrentLocation();
+      // Get location with proper permission handling
+      const locationResult = await getCurrentLocationWithPermission({
+        timeout: 10000,
+        showAlerts: true,
+      });
+
+      // Log if location not captured (but don't block clock-out)
+      if (!locationResult.success && __DEV__) {
+        console.log('⚠️ Clock-out location not captured:', locationResult.error);
+      }
 
       const now = new Date();
       let durationFormatted = '00:00:00';
@@ -484,7 +396,7 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
         durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       }
 
-      const updateResult = await retryOperation(
+      await retryOperation(
         async () => {
           let updateData: any = {
             clock_out_time: now.toISOString(),
@@ -495,9 +407,10 @@ export function ClockInScreen({ workerId, workerName, workerEmail, onClockIn, on
             updateData.shift_notes = notes.trim();
           }
 
-          if (location) {
-            updateData.clock_out_lat = location.lat;
-            updateData.clock_out_lng = location.lng;
+          // Only include location if successfully captured
+          if (locationResult.success && locationResult.coords) {
+            updateData.clock_out_lat = locationResult.coords.latitude;
+            updateData.clock_out_lng = locationResult.coords.longitude;
           }
 
           let result = await supabase

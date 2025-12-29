@@ -16,6 +16,7 @@ import { Drawer } from '@/components/Drawer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as Sharing from 'expo-sharing';
 import { useWorkerDocuments } from '@/hooks/useWorkerDocuments';
 
 export default function MyDocumentsScreen() {
@@ -42,6 +43,7 @@ export default function MyDocumentsScreen() {
     maxDocuments,
     uploadDocument,
     getDocumentUrl,
+    downloadDocumentToCache,
     refreshDocuments,
   } = useWorkerDocuments();
 
@@ -80,26 +82,89 @@ export default function MyDocumentsScreen() {
     }
   };
 
-  // Handle document view - opens in-app browser for reliable PDF viewing
-  const handleViewDocument = async (storagePath: string) => {
+  // Handle document view - platform-specific implementation
+  const handleViewDocument = async (storagePath: string, fileName: string) => {
     if (viewingDocument) return; // Prevent double-tap
-    
+
     try {
       setViewingDocument(true);
-      const url = await getDocumentUrl(storagePath);
-      if (url) {
-        // Open in in-app browser - works reliably with PDFs and signed URLs
-        await WebBrowser.openBrowserAsync(url, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          controlsColor: '#5B9BD5',
-          toolbarColor: '#E6F4FE',
-        });
+
+      if (Platform.OS === 'web') {
+        // Web: Use WebBrowser (works fine on web)
+        const url = await getDocumentUrl(storagePath);
+        if (url) {
+          await WebBrowser.openBrowserAsync(url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            controlsColor: '#5B9BD5',
+            toolbarColor: '#E6F4FE',
+          });
+        } else {
+          Alert.alert('Error', 'Could not generate document URL');
+        }
       } else {
-        Alert.alert('Error', 'Could not generate document URL');
+        // iOS/Android: Download to cache and open with native viewer
+        console.log('📱 Opening document with native viewer:', fileName);
+
+        const downloadResult = await downloadDocumentToCache(storagePath, fileName);
+
+        if (!downloadResult.success) {
+          console.error('❌ Download failed:', downloadResult.error);
+
+          // Special handling for empty file error
+          if (downloadResult.error?.includes('empty')) {
+            Alert.alert(
+              'Empty Document',
+              'This document appears to be empty (0 bytes). It may have been uploaded with an older version of the app.\n\nPlease delete and re-upload this document.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert('Download Failed', downloadResult.error || 'Could not download document');
+          }
+          return;
+        }
+
+        // Check if sharing is available (should be on iOS/Android)
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          Alert.alert(
+            'Not Supported',
+            'Document viewing is not available on this device. Please try on a different device.'
+          );
+          return;
+        }
+
+        // Open document with native viewer (iOS QuickLook, Android default viewer)
+        // UTI parameter tells iOS to use QuickLook preview instead of share sheet
+        console.log('📄 Opening native viewer for:', downloadResult.fileUri);
+
+        // Type guard to ensure fileUri exists
+        if (!downloadResult.fileUri) {
+          Alert.alert('Error', 'Failed to get file location');
+          return;
+        }
+
+        await Sharing.shareAsync(downloadResult.fileUri, {
+          mimeType: fileName.endsWith('.pdf')
+            ? 'application/pdf'
+            : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          UTI: fileName.endsWith('.pdf') ? 'com.adobe.pdf' : 'org.openxmlformats.wordprocessingml.document',
+          dialogTitle: 'View Document',
+        });
+
+        console.log('✅ Document viewer opened successfully');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error viewing document:', err);
-      Alert.alert('Error', 'Failed to open document. Please try again.');
+
+      // User-friendly error messages
+      let errorMessage = 'Failed to open document. Please try again.';
+      if (err?.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (err?.message?.includes('permission')) {
+        errorMessage = 'Permission denied. Please check app permissions in Settings.';
+      }
+
+      Alert.alert('Error', errorMessage);
     } finally {
       setViewingDocument(false);
     }
@@ -216,7 +281,7 @@ export default function MyDocumentsScreen() {
                     <View style={styles.documentActions}>
                       <TouchableOpacity
                         style={[styles.actionButton, viewingDocument && styles.actionButtonDisabled]}
-                        onPress={() => handleViewDocument(doc.storage_path)}
+                        onPress={() => handleViewDocument(doc.storage_path, doc.file_name)}
                         disabled={viewingDocument}
                       >
                         {viewingDocument ? (
